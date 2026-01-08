@@ -56,8 +56,9 @@ static void print_escaped(const char *s) {
 0[xX][0-9A-Fa-f]+       { yylval.str = dup_yytext(yytext); return HEX_LITERAL; }
 0[bB][01]+              { yylval.str = dup_yytext(yytext); return BITS_LITERAL; }
 [0-9]+                  { yylval.str = dup_yytext(yytext); return DEC_LITERAL; }
-\"([^\\"]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
-'[^']'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
+"([^\\"]|\\.)*"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
+/* accept escaped chars like '\n', '\\'' etc. */
+'([^\\']|\\.)'      { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
 [a-zA-Z_][a-zA-Z_0-9]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
 
