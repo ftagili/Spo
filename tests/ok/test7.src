@@ -133,6 +133,8 @@ void printValue_Vec2i(Vec2i v) {
  
 int main() {
     ListInt vn;
+    // allocate storage for the object so method dispatch reads valid memory
+    vn = malloc(32);
     vn.init();
  
     int n = 0;
@@ -143,6 +145,8 @@ int main() {
     vn.printValues();
  
     ListVec2i vv;
+    // allocate storage for the object so method dispatch reads valid memory
+    vv = malloc(32);
     vv.init();
  
     n = 0;
