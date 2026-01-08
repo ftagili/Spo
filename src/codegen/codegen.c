@@ -352,6 +352,7 @@ static int64_t parse_int_literal_label(const ASTNode *n) {
 static void gen_stmt(CG *cg, const ASTNode *stmt);
 static void gen_expr(CG *cg, const ASTNode *expr);
 static void gen_cond_branch(CG *cg, const ASTNode *cond, int false_label);
+static void gen_assign_index(CG *cg, const ASTNode *expr);
 static int cg_has_defined_function(CG *cg, const char *name);
 
 // ------------------------- pools collection (optional but handy) -------------------------
@@ -766,6 +767,49 @@ static void gen_index(CG *cg, const ASTNode *expr) {
   emit(cg, "  lg   %%r2,0(%%r1)");
 }
 
+static void gen_assign_index(CG *cg, const ASTNode *expr) {
+  // assign_index: id, argExprList, rhs
+  const ASTNode *idn = expr->children[0];
+  const ASTNode *args = (expr->numChildren > 1) ? expr->children[1] : NULL;
+  const ASTNode *rhs = (expr->numChildren > 2) ? expr->children[2] : NULL;
+
+  const char *base_name = (idn && is_token_kind(idn, "id")) ? after_colon(idn->label) : NULL;
+  const ASTNode *list = NULL;
+
+  if (args && args->label && strcmp(args->label, "args") == 0 && args->numChildren > 0) {
+    list = args->children[0];
+  }
+  if (!base_name || !list || !list->label || strcmp(list->label, "list") != 0 || list->numChildren < 1 || !rhs) {
+    emit(cg, "  # ERROR: malformed assign_index");
+    emit(cg, "  lghi %%r2,0");
+    return;
+  }
+
+  // Compute base pointer -> r3
+  emit_load_local(cg, base_name);
+  emit(cg, "  lgr  %%r3,%%r2");
+
+  // compute index -> r2
+  gen_expr(cg, list->children[0]);
+  // r2 = idx * 8
+  emit(cg, "  sllg %%r2,%%r2,3");
+  // r1 = base + idx*8
+  emit(cg, "  la   %%r1,0(%%r3,%%r2)");
+
+  // push address (move into r2 then push)
+  emit(cg, "  lgr  %%r2,%%r1");
+  emit_push_r2(cg);
+
+  // evaluate rhs -> r2
+  gen_expr(cg, rhs);
+
+  // pop address into r3
+  emit_pop_to_r3(cg); // r3 = addr
+
+  // store r2 into *(r3)
+  emit(cg, "  stg  %%r2,0(%%r3)");
+}
+
 static void gen_field_access(CG *cg, const ASTNode *expr) {
   // fieldAccess: obj, field_id
   // obj -> r3, затем load obj + field_offset -> r2
@@ -960,6 +1004,10 @@ static void gen_expr(CG *cg, const ASTNode *expr) {
   }
   if (!strcmp(L, "index")) {
     gen_index(cg, expr);
+    return;
+  }
+  if (!strcmp(L, "assign_index")) {
+    gen_assign_index(cg, expr);
     return;
   }
   if (!strcmp(L, "fieldAccess") && expr->numChildren >= 2) {
