@@ -1,0 +1,167 @@
+/* Concrete version of List for ints */
+class ListInt {
+    int arr;
+    int count;
+    int capacity;
+
+    void init() {
+        /* allocate initial array: 3 elements */
+        arr = malloc(3 * 8);
+        count = 0;
+        capacity = 3;
+    }
+    void expand() {
+        capacity = capacity * 2;
+    int y;
+        /* allocate space for capacity elements (int assumed 8 bytes) */
+        y = malloc(capacity * 8);
+        int n = 0;
+        while (n < count) {
+            y[n] = arr[n];
+            n = n + 1;
+        }
+        arr = y;
+    }
+    void add(int value) {
+        if (count >= capacity) {
+            expand();
+        }
+        arr[count] = value;
+        count = count + 1;
+    }
+    void printValues() {
+        int n = 0;
+        while (n < count) {
+            printValue(arr[n]);
+            n = n + 1;
+        }
+    }
+}
+
+/* Concrete version of List for Vec2i */
+class ListVec2i {
+    Vec2i arr;
+    int count;
+    int capacity;
+
+    void init() {
+        /* allocate initial array: 3 elements, Vec2i has two ints -> 16 bytes */
+        arr = malloc(3 * 16);
+        count = 0;
+        capacity = 3;
+    }
+    void expand() {
+        capacity = capacity * 2;
+    Vec2i y;
+        y = malloc(capacity * 16);
+        int n = 0;
+        while (n < count) {
+            y[n] = arr[n];
+            n = n + 1;
+        }
+        arr = y;
+    }
+    void add(Vec2i value) {
+        if (count >= capacity) {
+            expand();
+        }
+        arr[count] = value;
+        count = count + 1;
+    }
+    void printValues() {
+        int n = 0;
+        while (n < count) {
+            printValue(arr[n]);
+            n = n + 1;
+        }
+    }
+}
+ 
+int sumListInt(ListInt a) {
+    int n = 0;
+    int s = 0; 
+    while (n < a.count) {
+        s = s + a[n];
+        n = n + 1;
+    }
+    return s;
+}
+ 
+class Vec2i {
+    int x;
+    int y;
+ 
+    void init(int a, int b) {
+        x = a;
+        y = b;
+    }
+}
+ 
+Vec2i makeVec2i(int x, int y) {
+    Vec2i v;
+    v.init(x, y);
+    return v;
+}
+ 
+ 
+/* legacy/alias */
+int sum(ListInt a) { return sumListInt(a); }
+ 
+Vec2i sumListVec2i(ListVec2i a) {
+    int n = 0;
+    Vec2i s = makeVec2i(0, 0);
+    while (n < a.count) {
+        Vec2i v = a[n];
+        s = makeVec2i(s.x + v.x, s.y + v.y);
+        n = n + 1;
+    }
+    return s;
+}
+
+/* legacy/alias */
+Vec2i sum(ListVec2i a) { return sumListVec2i(a); }
+ 
+void printValue(int n) {
+    printInt(n);
+    writeByte('\n');
+}
+ 
+void printValue(Vec2i v) {
+    writeByte('x');
+    writeByte('=');
+    printInt(v.x);
+    writeByte('\n');
+    writeByte('y');
+    writeByte('='); 
+    printInt(v.y);
+    writeByte('\n');
+ 
+}
+ 
+int main() {
+    ListInt vn;
+    vn.init();
+ 
+    int n = 0;
+    while (n < 20) {
+        vn.add(n);
+        n = n + 1;
+    }
+    vn.printValues();
+ 
+    ListVec2i vv;
+    vv.init();
+ 
+    n = 0;
+    while (n < 20) {
+        vv.add(makeVec2i(n, 20 - n));
+        n = n + 1;
+    }
+ 
+    vv.printValues();
+}
+
+
+
+
+
