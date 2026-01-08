@@ -94,7 +94,6 @@ class Vec2i {
  
 Vec2i makeVec2i(int x, int y) {
     Vec2i v;
-    // allocate storage for the local Vec2i so method dispatch has a valid object
     v = malloc(24);
     v.init(x, y);
     return v;
@@ -135,7 +134,6 @@ void printValue_Vec2i(Vec2i v) {
  
 int main() {
     ListInt vn;
-    // allocate storage for the object so method dispatch reads valid memory
     vn = malloc(32);
     vn.init();
  
@@ -147,7 +145,6 @@ int main() {
     vn.printValues();
  
     ListVec2i vv;
-    // allocate storage for the object so method dispatch reads valid memory
     vv = malloc(32);
     vv.init();
  
