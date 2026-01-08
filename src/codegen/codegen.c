@@ -29,6 +29,9 @@ static int starts_with(const char *s, const char *pfx) {
   return strncmp(s, pfx, n) == 0;
 }
 
+// forward decl (is_token_kind is defined later)
+static int is_token_kind(const ASTNode *n, const char *kind);
+
 // Extract a simple type name from a typeRef/type/genType AST node.
 // Returns pointer into the AST node's label (do not free).
 static const char *get_type_name(const ASTNode *type_node) {
