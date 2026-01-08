@@ -29,6 +29,20 @@ static int starts_with(const char *s, const char *pfx) {
   return strncmp(s, pfx, n) == 0;
 }
 
+// Extract a simple type name from a typeRef/type/genType AST node.
+// Returns pointer into the AST node's label (do not free).
+static const char *get_type_name(const ASTNode *type_node) {
+  if (!type_node) return NULL;
+  if (is_token_kind(type_node, "type") || is_token_kind(type_node, "typeRef")) {
+    return after_colon(type_node->label);
+  }
+  if (type_node->label && strcmp(type_node->label, "genType") == 0 && type_node->numChildren > 0) {
+    const ASTNode *idn = type_node->children[0];
+    if (idn && is_token_kind(idn, "id")) return after_colon(idn->label);
+  }
+  return NULL;
+}
+
 static int is_token_kind(const ASTNode *n, const char *kind) {
   if (!n || !n->label || !kind) return 0;
   size_t k = strlen(kind);
@@ -42,6 +56,7 @@ static int align16(int x) { return (x + 15) & ~15; }
 typedef struct {
   char *name;
   int offset; // от %r11 (frame base)
+  char *type; // optional static type name for local (e.g. "ListInt")
 } Local;
 
 typedef struct {
@@ -54,6 +69,7 @@ static void locals_init(LocalMap *m) { memset(m, 0, sizeof(*m)); }
 static void locals_free(LocalMap *m) {
   if (!m) return;
   for (int i = 0; i < m->n; i++) free(m->v[i].name);
+  for (int i = 0; i < m->n; i++) free(m->v[i].type);
   free(m->v);
   memset(m, 0, sizeof(*m));
 }
@@ -66,7 +82,7 @@ static int locals_find(const LocalMap *m, const char *name) {
   return -1;
 }
 
-static int locals_add(LocalMap *m, const char *name, int offset) {
+static int locals_add(LocalMap *m, const char *name, int offset, const char *type) {
   if (!m || !name) return -1;
   if (locals_find(m, name) >= 0) return 0; // already exists
 
@@ -78,6 +94,7 @@ static int locals_add(LocalMap *m, const char *name, int offset) {
     m->cap = nc;
   }
   m->v[m->n].name = dup_cstr(name);
+  m->v[m->n].type = type ? dup_cstr(type) : NULL;
   m->v[m->n].offset = offset;
   m->n++;
   return 1;
@@ -88,6 +105,12 @@ static int locals_get_offset(const LocalMap *m, const char *name, int *out_off) 
   if (idx < 0) return 0;
   if (out_off) *out_off = m->v[idx].offset;
   return 1;
+}
+
+static const char *locals_get_type(const LocalMap *m, const char *name) {
+  int idx = locals_find(m, name);
+  if (idx < 0) return NULL;
+  return m->v[idx].type;
 }
 
 // ------------------------- string/const pools -------------------------
@@ -335,6 +358,8 @@ static void collect_locals_from_block(CG *cg, const ASTNode *node, int *next_off
   if (node->label && strcmp(node->label, "vardecl") == 0) {
     // vardecl: [0]=typeRef, [1]=vars
     if (node->numChildren >= 2) {
+      const ASTNode *type_node = node->children[0];
+      const char *type_name = get_type_name(type_node);
       const ASTNode *vars = node->children[1];
       if (vars && vars->label && strcmp(vars->label, "vars") == 0) {
         // children: id, optAssign, id, optAssign...
@@ -343,7 +368,7 @@ static void collect_locals_from_block(CG *cg, const ASTNode *node, int *next_off
           if (idn && is_token_kind(idn, "id")) {
             const char *name = after_colon(idn->label);
             int off = *next_off;
-            if (locals_add(&cg->locals, name, off) > 0) {
+            if (locals_add(&cg->locals, name, off, type_name) > 0) {
               *next_off += 8;
             }
           }
@@ -377,8 +402,11 @@ static void collect_params_as_locals(CG *cg, const ASTNode *signature, int *next
     const ASTNode *idn = arg->children[1];
     if (idn && is_token_kind(idn, "id")) {
       const char *name = after_colon(idn->label);
+      // try extract type name from arg->children[0]
+      const ASTNode *type_node = arg->children[0];
+      const char *type_name = get_type_name(type_node);
       int off = *next_off;
-      if (locals_add(&cg->locals, name, off) > 0) {
+      if (locals_add(&cg->locals, name, off, type_name) > 0) {
         *next_off += 8;
       }
     }
@@ -780,6 +808,21 @@ static void gen_method_call(CG *cg, const ASTNode *expr) {
   // TODO: Get method slot and implementation label from TypeEnv
   // For now, use mangled name: Class__method
   emit(cg, "  # TODO: virtual method dispatch for '%s'", method_name);
+
+  // Try a simple static dispatch: if the object is a local id and we recorded
+  // its static type, call the mangled function <Type>__<method> directly.
+  if (obj && obj->label && is_token_kind(obj, "id")) {
+    const char *obj_name = after_colon(obj->label);
+    const char *static_type = locals_get_type(&cg->locals, obj_name);
+    if (static_type) {
+      char mangled[256];
+      snprintf(mangled, sizeof(mangled), "%s__%s", static_type, method_name);
+      emit(cg, "  # static dispatch to %s (object '%s' has type %s)", mangled, obj_name, static_type);
+      emit(cg, "  brasl %%r14,%s", mangled);
+      return;
+    }
+  }
+
   emit(cg, "  # Load vtable pointer from object (offset 0)");
   emit(cg, "  lg   %%r1,0(%%r2)"); // r1 = vtable pointer
   emit(cg, "  # TODO: Load method pointer from vtable[slot]");
@@ -1523,6 +1566,101 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
       }
       if (defined.names && defined.n < defined.cap) {
         defined.names[defined.n++] = nm;
+      }
+    }
+  }
+
+  // Convert class members (methods) into top-level mangled functions
+  // so they are emitted by the existing function generator. The
+  // convention used here is: <ClassName>__<methodName>
+  for (int i = 0; i < items->numChildren; i++) {
+    const ASTNode *item = items->children[i];
+    if (!item || !item->label) continue;
+    if (strcmp(item->label, "class") != 0) continue;
+
+    const char *class_name = extract_class_name_from_ast(item);
+    if (!class_name) continue;
+
+    // Find members node
+    const ASTNode *members = NULL;
+    for (int j = 0; j < item->numChildren; j++) {
+      const ASTNode *c = item->children[j];
+      if (c && c->label && strcmp(c->label, "members") == 0) { members = c; break; }
+    }
+    if (!members) continue;
+
+    // For each member, if it contains an inner funcDef, create a top-level
+    // funcDef with a mangled name and the same body. We prepend an implicit
+    // 'this' parameter of type <ClassName> so the generated function will
+    // receive the object pointer in r2 as gen_method_call expects.
+    for (int m = 0; m < members->numChildren; m++) {
+      const ASTNode *member = members->children[m];
+      if (!member || !member->label) continue;
+
+      // Look for a nested funcDef inside this member
+      for (int k = 0; k < member->numChildren; k++) {
+        const ASTNode *child = member->children[k];
+        if (!child || !child->label) continue;
+        if (strcmp(child->label, "funcDef") != 0) continue;
+
+        const ASTNode *orig_fn = child;
+        const ASTNode *orig_sig = (orig_fn->numChildren > 0) ? orig_fn->children[0] : NULL;
+        if (!orig_sig || !orig_sig->label || strcmp(orig_sig->label, "signature") != 0) continue;
+
+        // Extract method name from signature (if present)
+        const char *method_name = "unknown";
+        if (orig_sig->numChildren >= 2) {
+          const ASTNode *idn = orig_sig->children[1];
+          if (idn && is_token_kind(idn, "id")) method_name = after_colon(idn->label);
+        }
+
+        // Build mangled name: Class__method
+        char mangled[256];
+        snprintf(mangled, sizeof(mangled), "%s__%s", class_name, method_name);
+
+        // Build new signature: [0]=returnType (reuse), [1]=mangled id, [2]=args
+        ASTNode *new_sig = ast_create_node("signature");
+        if (orig_sig->numChildren >= 1) {
+          ast_add_child(new_sig, (ASTNode*)orig_sig->children[0]); // return type (reuse)
+        }
+        ASTNode *idnode = ast_create_leaf_token("id", mangled);
+        ast_add_child(new_sig, idnode);
+
+        // Build args: create arglist with implicit 'this' arg first
+        ASTNode *args_node = ast_create_node("args");
+        ASTNode *arglist = ast_create_node("arglist");
+
+        // implicit this: arg -> [ typeRef(class_name), id(this) ]
+        ASTNode *this_arg = ast_create_node("arg");
+        ASTNode *this_type = ast_create_leaf_token("typeRef", (char*)class_name);
+        ASTNode *this_id = ast_create_leaf_token("id", "this");
+        ast_add_child(this_arg, this_type);
+        ast_add_child(this_arg, this_id);
+        ast_add_child(arglist, this_arg);
+
+        // Append original args (if any)
+        if (orig_sig->numChildren >= 3) {
+          const ASTNode *old_args = orig_sig->children[2];
+          if (old_args && old_args->label && strcmp(old_args->label, "args") == 0 && old_args->numChildren > 0) {
+            const ASTNode *old_arglist = old_args->children[0];
+            if (old_arglist && old_arglist->label && strcmp(old_arglist->label, "arglist") == 0) {
+              for (int a = 0; a < old_arglist->numChildren; a++) {
+                ast_add_child(arglist, (ASTNode*)old_arglist->children[a]); // reuse
+              }
+            }
+          }
+        }
+
+        ast_add_child(args_node, arglist);
+        ast_add_child(new_sig, args_node);
+
+        // Create new top-level funcDef and attach signature + body
+        ASTNode *new_fn = ast_create_node("funcDef");
+        ast_add_child(new_fn, new_sig);
+        if (orig_fn->numChildren >= 2) ast_add_child(new_fn, (ASTNode*)orig_fn->children[1]); // reuse body
+
+        // Append to top-level items so the normal function emitter will generate it
+        ast_add_child((ASTNode*)items, new_fn);
       }
     }
   }
