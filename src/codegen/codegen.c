@@ -31,6 +31,8 @@ static int starts_with(const char *s, const char *pfx) {
 
 // forward decl (is_token_kind is defined later)
 static int is_token_kind(const ASTNode *n, const char *kind);
+// forward decl for helper that classifies stdlib functions
+static int is_standard_library_func(const char *name);
 
 // Extract a simple type name from a typeRef/type/genType AST node.
 // Returns pointer into the AST node's label (do not free).
