@@ -10,6 +10,26 @@ static char* dup_yytext(const char* s) {
   if (d) memcpy(d, s, n);
   return d;
 }
+
+static void print_escaped(const char *s) {
+  fputs("Unknown symbol: '", stderr);
+  for (const unsigned char *p = (const unsigned char*)s; *p; ++p) {
+    unsigned char c = *p;
+    switch (c) {
+      case '\\': fputs("\\\\", stderr); break;
+      case '\n': fputs("\\n", stderr); break;
+      case '\r': fputs("\\r", stderr); break;
+      case '\t': fputs("\\t", stderr); break;
+      default:
+        if (c >= 32 && c < 127) {
+          fputc(c, stderr);
+        } else {
+          fprintf(stderr, "\\x%02x", c);
+        }
+    }
+  }
+  fputs("'\n", stderr);
+}
 %}
 
 %option noyywrap
@@ -78,6 +98,6 @@ static char* dup_yytext(const char* s) {
 "//"[^\n]*                   { /* single-line comment */ }
 
 [[:space:]]+     { }
-.                { printf("Unknown symbol: %s\n", yytext); }
+.                { print_escaped(yytext); }
 
 %%
