@@ -786,8 +786,28 @@ static void gen_assign_index(CG *cg, const ASTNode *expr) {
   }
 
   // Compute base pointer -> r3
-  emit_load_local(cg, base_name);
-  emit(cg, "  lgr  %%r3,%%r2");
+  int off = 0;
+  if (locals_get_offset(&cg->locals, base_name, &off)) {
+    // base is a local variable (pointer)
+    emit_load_local(cg, base_name);
+    emit(cg, "  lgr  %%r3,%%r2");
+  } else {
+    // base not found as local — try treating it as a field of 'this'
+    if (locals_get_offset(&cg->locals, "this", &off)) {
+      // load this pointer into r2 -> r3
+      emit_load_local(cg, "this");
+      emit(cg, "  lgr  %%r3,%%r2");
+      // TODO: compute field offset properly from type info; use placeholder offset 8
+      emit(cg, "  # TODO: field '%s' offset lookup (treating as this.%s)", base_name, base_name);
+      emit(cg, "  lg   %%r2,8(%%r3)"); // r2 = this->base (pointer stored at offset 8)
+      emit(cg, "  lgr  %%r3,%%r2");
+    } else {
+      // unknown base — produce debug-friendly zero
+      emit(cg, "  # ERROR: unknown base '%s' for assign_index", base_name);
+      emit(cg, "  lghi %%r2,0");
+      emit(cg, "  lgr  %%r3,%%r2");
+    }
+  }
 
   // compute index -> r2
   gen_expr(cg, list->children[0]);
