@@ -117,19 +117,18 @@ Vec2i sumVec2i(ListVec2i a) { return sumListVec2i(a); }
  
 void printValue_int(int n) {
     printInt(n);
-    writeByte('\n');
+    writeByte(10);
 }
- 
+
 void printValue_Vec2i(Vec2i v) {
     writeByte('x');
     writeByte('=');
     printInt(v.x);
-    writeByte('\n');
+    writeByte(10);
     writeByte('y');
     writeByte('='); 
     printInt(v.y);
-    writeByte('\n');
-
+    writeByte(10);
 }
  
 int main() {
