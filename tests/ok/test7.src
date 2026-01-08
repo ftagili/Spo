@@ -1,11 +1,9 @@
-/* Concrete version of List for ints */
 class ListInt {
     int arr;
     int count;
     int capacity;
 
     void init() {
-        /* allocate initial array: 3 elements */
         arr = malloc(3 * 8);
         count = 0;
         capacity = 3;
@@ -13,7 +11,6 @@ class ListInt {
     void expand() {
         capacity = capacity * 2;
     int y;
-        /* allocate space for capacity elements (int assumed 8 bytes) */
         y = malloc(capacity * 8);
         int n = 0;
         while (n < count) {
@@ -32,20 +29,18 @@ class ListInt {
     void printValues() {
         int n = 0;
         while (n < count) {
-            printValue(arr[n]);
+            printValue_int(arr[n]);
             n = n + 1;
         }
     }
 }
 
-/* Concrete version of List for Vec2i */
 class ListVec2i {
     Vec2i arr;
     int count;
     int capacity;
 
     void init() {
-        /* allocate initial array: 3 elements, Vec2i has two ints -> 16 bytes */
         arr = malloc(3 * 16);
         count = 0;
         capacity = 3;
@@ -71,7 +66,7 @@ class ListVec2i {
     void printValues() {
         int n = 0;
         while (n < count) {
-            printValue(arr[n]);
+            printValue_Vec2i(arr[n]);
             n = n + 1;
         }
     }
@@ -104,8 +99,7 @@ Vec2i makeVec2i(int x, int y) {
 }
  
  
-/* legacy/alias */
-int sum(ListInt a) { return sumListInt(a); }
+int sumInt(ListInt a) { return sumListInt(a); }
  
 Vec2i sumListVec2i(ListVec2i a) {
     int n = 0;
@@ -118,15 +112,14 @@ Vec2i sumListVec2i(ListVec2i a) {
     return s;
 }
 
-/* legacy/alias */
-Vec2i sum(ListVec2i a) { return sumListVec2i(a); }
+Vec2i sumVec2i(ListVec2i a) { return sumListVec2i(a); }
  
-void printValue(int n) {
+void printValue_int(int n) {
     printInt(n);
     writeByte('\n');
 }
  
-void printValue(Vec2i v) {
+void printValue_Vec2i(Vec2i v) {
     writeByte('x');
     writeByte('=');
     printInt(v.x);
@@ -135,7 +128,7 @@ void printValue(Vec2i v) {
     writeByte('='); 
     printInt(v.y);
     writeByte('\n');
- 
+
 }
  
 int main() {

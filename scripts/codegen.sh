@@ -36,5 +36,10 @@ cd ..
 
 # ассемблирование
 gcc -c "$out" -o output/out.o -Wa,--noexecstack
-gcc -no-pie output/out.o -o output/a.out
+
+# compile small runtime helpers and link them in so generated code
+# that calls printInt/writeByte or placeholder virtual methods will link.
+gcc -c "${SCRIPT_DIR}/runtime.c" -o output/runtime.o
+
+gcc -no-pie output/out.o output/runtime.o -o output/a.out
 ./output/a.out
