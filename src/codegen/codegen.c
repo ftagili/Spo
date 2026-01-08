@@ -860,8 +860,15 @@ static void gen_assign_index(CG *cg, const ASTNode *expr) {
   // pop address into r3
   emit_pop_to_r3(cg); // r3 = addr
 
-  // store r2 into *(r3)
-  emit(cg, "  stg  %%r2,0(%%r3)");
+  // store r2 into *(r3) but guard against NULL addresses to avoid segfault
+  {
+    int lbl_ok = new_label(cg);
+    emit(cg, "  lghi %%r4,0");
+    emit(cg, "  cgr  %%r3,%%r4");
+    emit(cg, "  je   .L%d", lbl_ok); // if r3 == 0 jump to skip
+    emit(cg, "  stg  %%r2,0(%%r3)");
+    emit_label(cg, lbl_ok);
+  }
 }
 
 static void gen_field_access(CG *cg, const ASTNode *expr) {
