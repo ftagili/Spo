@@ -235,6 +235,11 @@ typedef struct {
   /* top-level defined function names collected before generation */
   const char **defined_names;
   int defined_n;
+  /* simple field offset map: parallel arrays */
+  const char **field_class_names; /* class name per field entry */
+  const char **field_names;       /* field name */
+  int *field_offsets;            /* offset in bytes */
+  int field_n;
 
 } CG;
 
@@ -249,6 +254,10 @@ static void cg_init(CG *cg, FILE *out) {
   locals_init(&cg->locals);
   cg->defined_names = NULL;
   cg->defined_n = 0;
+  cg->field_class_names = NULL;
+  cg->field_names = NULL;
+  cg->field_offsets = NULL;
+  cg->field_n = 0;
 }
 
 static void cg_free(CG *cg) {
@@ -258,6 +267,9 @@ static void cg_free(CG *cg) {
   locals_free(&cg->locals);
   free(cg->break_labels);
   free((void*)cg->defined_names);
+  free((void*)cg->field_class_names);
+  free((void*)cg->field_names);
+  free(cg->field_offsets);
   memset(cg, 0, sizeof(*cg));
 }
 
@@ -797,9 +809,31 @@ static void gen_assign_index(CG *cg, const ASTNode *expr) {
       // load this pointer into r2 -> r3
       emit_load_local(cg, "this");
       emit(cg, "  lgr  %%r3,%%r2");
-      // TODO: compute field offset properly from type info; use placeholder offset 8
-      emit(cg, "  # TODO: field '%s' offset lookup (treating as this.%s)", base_name, base_name);
-      emit(cg, "  lg   %%r2,8(%%r3)"); // r2 = this->base (pointer stored at offset 8)
+      // Find field offset from cg map (prefer current class)
+      int fo = 8; int foundf = 0;
+      if (cg) {
+        for (int i = 0; i < cg->field_n; i++) {
+          if (cg->field_names[i] && strcmp(cg->field_names[i], base_name) == 0) {
+            if (cg->cur_func && strstr(cg->cur_func, "__")) {
+              char cls[256];
+              const char *p = strstr(cg->cur_func, "__");
+              size_t len = (size_t)(p - cg->cur_func);
+              if (len < sizeof(cls)) {
+                memcpy(cls, cg->cur_func, len);
+                cls[len] = '\0';
+                if (!strcmp(cls, cg->field_class_names[i])) { fo = cg->field_offsets[i]; foundf = 1; break; }
+              }
+            }
+          }
+        }
+        if (!foundf) {
+          for (int i = 0; i < cg->field_n; i++) {
+            if (cg->field_names[i] && strcmp(cg->field_names[i], base_name) == 0) { fo = cg->field_offsets[i]; foundf = 1; break; }
+          }
+        }
+      }
+      emit(cg, "  # field '%s' offset %d (this.%s)", base_name, fo, base_name);
+      emit(cg, "  lg   %%r2,%d(%%r3)", fo); // r2 = this->base (pointer)
       emit(cg, "  lgr  %%r3,%%r2");
     } else {
       // unknown base — produce debug-friendly zero
@@ -852,12 +886,35 @@ static void gen_field_access(CG *cg, const ASTNode *expr) {
   // Evaluate object expression -> r2
   gen_expr(cg, obj);
   emit(cg, "  lgr  %%r3,%%r2"); // r3 = object pointer
-
-  // TODO: Get field offset from TypeEnv
-  // For now, assume 8-byte alignment (vptr at offset 0, first field at offset 8)
-  // This is a placeholder - should be replaced with actual type information
-  emit(cg, "  # TODO: field '%s' offset lookup", field_name);
-  emit(cg, "  lg   %%r2,8(%%r3)"); // Placeholder: load field at offset 8
+  // Look up field offset in cg map
+  int found = 0;
+  int off = 8; // default
+  if (cg && field_name) {
+    for (int i = 0; i < cg->field_n; i++) {
+      if (cg->field_names[i] && cg->field_class_names[i] && strcmp(cg->field_names[i], field_name) == 0) {
+        // If we're inside a method, prefer matching class
+        if (cg->cur_func && strstr(cg->cur_func, "__")) {
+          char cls[256];
+          const char *p = strstr(cg->cur_func, "__");
+          size_t len = (size_t)(p - cg->cur_func);
+          if (len < sizeof(cls)) {
+            memcpy(cls, cg->cur_func, len);
+            cls[len] = '\0';
+            if (!strcmp(cls, cg->field_class_names[i])) {
+              off = cg->field_offsets[i]; found = 1; break;
+            }
+          }
+        }
+      }
+    }
+    if (!found) {
+      for (int i = 0; i < cg->field_n; i++) {
+        if (cg->field_names[i] && strcmp(cg->field_names[i], field_name) == 0) { off = cg->field_offsets[i]; found = 1; break; }
+      }
+    }
+  }
+  emit(cg, "  # field '%s' offset %d", field_name, off);
+  emit(cg, "  lg   %%r2,%d(%%r3)", off);
 }
 
 static void gen_method_call(CG *cg, const ASTNode *expr) {
@@ -1588,6 +1645,23 @@ static void emit_type_info(CG *cg, const ASTNode *root) {
     const char **field_names = NULL;
     int n_fields = 0;
     collect_fields_from_class(item, &field_names, &n_fields);
+
+    /* populate cg field map entries for this class */
+    for (int j = 0; j < n_fields; j++) {
+      int new_n = cg->field_n + 1;
+      const char **nc = (const char **)realloc((void*)cg->field_class_names, (size_t)new_n * sizeof(char*));
+      if (nc) cg->field_class_names = nc;
+      const char **nn = (const char **)realloc((void*)cg->field_names, (size_t)new_n * sizeof(char*));
+      if (nn) cg->field_names = nn;
+      int *no = (int *)realloc(cg->field_offsets, (size_t)new_n * sizeof(int));
+      if (no) cg->field_offsets = no;
+      if (cg->field_class_names && cg->field_names && cg->field_offsets) {
+        cg->field_class_names[cg->field_n] = dup_cstr(class_name);
+        cg->field_names[cg->field_n] = dup_cstr(field_names[j]);
+        cg->field_offsets[cg->field_n] = 8 + j * 8;
+        cg->field_n = new_n;
+      }
+    }
     
     // Emit type info structure
     emit(cg, "");
@@ -1716,6 +1790,28 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
       if (c && c->label && strcmp(c->label, "members") == 0) { members = c; break; }
     }
     if (!members) continue;
+
+    /* populate cg field map entries for this class early so generators
+       can consult field offsets while emitting functions */
+    const char **cls_field_names = NULL;
+    int cls_n_fields = 0;
+    collect_fields_from_class(item, &cls_field_names, &cls_n_fields);
+    for (int j = 0; j < cls_n_fields; j++) {
+      int new_n = cg.field_n + 1;
+      const char **nc = (const char **)realloc((void*)cg.field_class_names, (size_t)new_n * sizeof(char*));
+      if (nc) cg.field_class_names = nc;
+      const char **nn = (const char **)realloc((void*)cg.field_names, (size_t)new_n * sizeof(char*));
+      if (nn) cg.field_names = nn;
+      int *no = (int *)realloc(cg.field_offsets, (size_t)new_n * sizeof(int));
+      if (no) cg.field_offsets = no;
+      if (cg.field_class_names && cg.field_names && cg.field_offsets) {
+        cg.field_class_names[cg.field_n] = dup_cstr(class_name);
+        cg.field_names[cg.field_n] = dup_cstr(cls_field_names[j]);
+        cg.field_offsets[cg.field_n] = 8 + j * 8;
+        cg.field_n = new_n;
+      }
+    }
+    free((void*)cls_field_names);
 
     // For each member, if it contains an inner funcDef, create a top-level
     // funcDef with a mangled name and the same body. We prepend an implicit
