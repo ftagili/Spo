@@ -526,8 +526,33 @@ static void gen_call(CG *cg, const ASTNode *call) {
     emit(cg, "  lghi %%r2,0");
     return;
   }
-
-  emit(cg, "  brasl %%r14,%s", fname); // result in r2
+  // If we're inside a mangled method (Class__method) and this is an
+  // unqualified call like "expand()", assume it refers to a method of
+  // the same class and mangle it to Class__expand. Skip mangling for
+  // known standard library functions.
+  if (cg->cur_func && strstr(cg->cur_func, "__") && strstr(fname, "__") == NULL && !is_standard_library_func(fname)) {
+    // extract class prefix from cur_func (up to '__')
+    const char *p = strstr(cg->cur_func, "__");
+    if (p) {
+      size_t cls_len = (size_t)(p - cg->cur_func);
+      char mangled[256];
+      if (cls_len + 2 + strlen(fname) < sizeof(mangled)) {
+        // build mangled name: <Class>__<fname>
+        memcpy(mangled, cg->cur_func, cls_len);
+        mangled[cls_len] = '\0';
+        strcat(mangled, "__");
+        strcat(mangled, fname);
+        emit(cg, "  brasl %%r14,%s", mangled);
+      } else {
+        emit(cg, "  brasl %%r14,%s", fname);
+      }
+    } else {
+      // couldn't find class prefix, fallback
+      emit(cg, "  brasl %%r14,%s", fname);
+    }
+  } else {
+    emit(cg, "  brasl %%r14,%s", fname); // result in r2
+  }
   
   if (!strcmp(fname, "puts") || !strcmp(fname, "printf")) {
     emit(cg, "  # Flush stdout after %s to ensure immediate output", fname);
