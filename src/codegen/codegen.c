@@ -232,6 +232,10 @@ typedef struct {
   int *break_labels;
   int break_n, break_cap;
 
+  /* top-level defined function names collected before generation */
+  const char **defined_names;
+  int defined_n;
+
 } CG;
 
 static void cg_init(CG *cg, FILE *out) {
@@ -243,6 +247,8 @@ static void cg_init(CG *cg, FILE *out) {
   cg->next_str_label = 0;
   cg->next_c64_label = 0;
   locals_init(&cg->locals);
+  cg->defined_names = NULL;
+  cg->defined_n = 0;
 }
 
 static void cg_free(CG *cg) {
@@ -251,7 +257,17 @@ static void cg_free(CG *cg) {
   cpool_free(&cg->const_pool);
   locals_free(&cg->locals);
   free(cg->break_labels);
+  free((void*)cg->defined_names);
   memset(cg, 0, sizeof(*cg));
+}
+
+static int cg_has_defined_function(CG *cg, const char *name) {
+  if (!cg || !name) return 0;
+  for (int i = 0; i < cg->defined_n; i++) {
+    const char *n = cg->defined_names[i];
+    if (n && strcmp(n, name) == 0) return 1;
+  }
+  return 0;
 }
 
 static void emit(CG *cg, const char *fmt, ...) {
@@ -336,6 +352,7 @@ static int64_t parse_int_literal_label(const ASTNode *n) {
 static void gen_stmt(CG *cg, const ASTNode *stmt);
 static void gen_expr(CG *cg, const ASTNode *expr);
 static void gen_cond_branch(CG *cg, const ASTNode *cond, int false_label);
+static int cg_has_defined_function(CG *cg, const char *name);
 
 // ------------------------- pools collection (optional but handy) -------------------------
 
@@ -528,18 +545,19 @@ static void gen_call(CG *cg, const ASTNode *call) {
     emit(cg, "  lghi %%r2,0");
     return;
   }
-  // If we're inside a mangled method (Class__method) and this is an
-  // unqualified call like "expand()", assume it refers to a method of
-  // the same class and mangle it to Class__expand. Skip mangling for
-  // known standard library functions.
-  if (cg->cur_func && strstr(cg->cur_func, "__") && strstr(fname, "__") == NULL && !is_standard_library_func(fname)) {
-    // extract class prefix from cur_func (up to '__')
+  // If the name refers to an actually defined top-level function, call it
+  // directly (don't mangle). Otherwise, if we're inside a mangled method
+  // (Class__method) and the call is unqualified, treat it as a method of
+  // the same class and mangle to Class__name. Standard library functions
+  // are also left unmangled.
+  if (cg_has_defined_function(cg, fname) || is_standard_library_func(fname)) {
+    emit(cg, "  brasl %%r14,%s", fname);
+  } else if (cg->cur_func && strstr(cg->cur_func, "__") && strstr(fname, "__") == NULL) {
     const char *p = strstr(cg->cur_func, "__");
     if (p) {
       size_t cls_len = (size_t)(p - cg->cur_func);
       char mangled[256];
       if (cls_len + 2 + strlen(fname) < sizeof(mangled)) {
-        // build mangled name: <Class>__<fname>
         memcpy(mangled, cg->cur_func, cls_len);
         mangled[cls_len] = '\0';
         strcat(mangled, "__");
@@ -549,7 +567,6 @@ static void gen_call(CG *cg, const ASTNode *call) {
         emit(cg, "  brasl %%r14,%s", fname);
       }
     } else {
-      // couldn't find class prefix, fallback
       emit(cg, "  brasl %%r14,%s", fname);
     }
   } else {
@@ -1600,6 +1617,19 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
     }
   }
 
+  // Copy set into CG so codegen routines can query which top-level
+  // functions are defined (used to avoid mangling calls to actual
+  // global functions).
+  if (defined.n > 0) {
+    // Transfer ownership of the names array to cg so other routines
+    // can consult which top-level functions are defined.
+    cg.defined_names = defined.names;
+    cg.defined_n = defined.n;
+    defined.names = NULL;
+    defined.n = 0;
+    defined.cap = 0;
+  }
+
   // Convert class members (methods) into top-level mangled functions
   // so they are emitted by the existing function generator. The
   // convention used here is: <ClassName>__<methodName>
@@ -1722,7 +1752,7 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
     }
   }
   
-  free(defined.names);
+  // defined.names memory has been moved into cg.defined_names above; do not free here
 
   emit(&cg, "");
   emit(&cg, "  # External symbols for standard library");
