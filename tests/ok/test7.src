@@ -94,6 +94,8 @@ class Vec2i {
  
 Vec2i makeVec2i(int x, int y) {
     Vec2i v;
+    // allocate storage for the local Vec2i so method dispatch has a valid object
+    v = malloc(24);
     v.init(x, y);
     return v;
 }
