@@ -1,17 +1,17 @@
-class ListInt {
-    int arr;
+template <T> class List {
+    T[] arr;
     int count;
     int capacity;
-
+ 
     void init() {
-        arr = malloc(3 * 8);
+        int x[3];
+        arr = x;
         count = 0;
         capacity = 3;
     }
     void expand() {
         capacity = capacity * 2;
-    int y;
-        y = malloc(capacity * 8);
+        int y[capacity];
         int n = 0;
         while (n < count) {
             y[n] = arr[n];
@@ -19,7 +19,7 @@ class ListInt {
         }
         arr = y;
     }
-    void add(int value) {
+    void add(T value) {
         if (count >= capacity) {
             expand();
         }
@@ -29,55 +29,17 @@ class ListInt {
     void printValues() {
         int n = 0;
         while (n < count) {
-            printValue_int(arr[n]);
-            n = n + 1;
-        }
-    }
-}
-
-class ListVec2i {
-    Vec2i arr;
-    int count;
-    int capacity;
-
-    void init() {
-        arr = malloc(3 * 16);
-        count = 0;
-        capacity = 3;
-    }
-    void expand() {
-        capacity = capacity * 2;
-    Vec2i y;
-        y = malloc(capacity * 16);
-        int n = 0;
-        while (n < count) {
-            y[n] = arr[n];
-            n = n + 1;
-        }
-        arr = y;
-    }
-    void add(Vec2i value) {
-        if (count >= capacity) {
-            expand();
-        }
-        arr[count] = value;
-        count = count + 1;
-    }
-    void printValues() {
-        int n = 0;
-        while (n < count) {
-            printValue_Vec2i(arr[n]);
+            printValue(arr[n]);
             n = n + 1;
         }
     }
 }
  
-int sumListInt(ListInt a) {
+int sum(List<int> a) {
     int n = 0;
     int s = 0; 
     while (n < a.count) {
         s = s + a[n];
-        n = n + 1;
     }
     return s;
 }
@@ -94,15 +56,22 @@ class Vec2i {
  
 Vec2i makeVec2i(int x, int y) {
     Vec2i v;
-    v = malloc(24);
     v.init(x, y);
     return v;
 }
  
  
-int sumInt(ListInt a) { return sumListInt(a); }
+int sum(List<int> a) {
+    int n = 0;
+    int s = 0; 
+    while (n < a.count) {
+        s = s + a[n];
+        n = n + 1;
+    }
+    return s;
+}
  
-Vec2i sumListVec2i(ListVec2i a) {
+Vec2i sum(List<Vec2i> a) {
     int n = 0;
     Vec2i s = makeVec2i(0, 0);
     while (n < a.count) {
@@ -112,8 +81,6 @@ Vec2i sumListVec2i(ListVec2i a) {
     }
     return s;
 }
-
-Vec2i sumVec2i(ListVec2i a) { return sumListVec2i(a); }
  
 void printValue_int(int n) {
     printInt(n);
@@ -132,8 +99,7 @@ void printValue_Vec2i(Vec2i v) {
 }
  
 int main() {
-    ListInt vn;
-    vn = malloc(32);
+    List<int> vn;
     vn.init();
  
     int n = 0;
@@ -143,8 +109,7 @@ int main() {
     }
     vn.printValues();
  
-    ListVec2i vv;
-    vv = malloc(32);
+    List<Vec2i> vv;
     vv.init();
  
     n = 0;
@@ -155,8 +120,3 @@ int main() {
  
     vv.printValues();
 }
-
-
-
-
-
