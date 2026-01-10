@@ -40,12 +40,13 @@ cd ..
 # storage at runtime through a helper in runtime.c.
 tmp_in="$(mktemp --suffix=.src)"
 
-# Use Perl to do a safe, general regexp-based transform across the file.
-# Match a word (type) followed by whitespace, an identifier, optional spaces,
-# a bracketed expression, then a semicolon. Replace with array type + alloc.
-perl -0777 -pe '
-    s/\b([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+?)\s*\]\s*;/\1[] \2;\n\2 = __alloc_array(\3);/gs;
-' "$in" > "$tmp_in"
+# Use sed to rewrite single-line sized-array declarations like:
+#   TYPE name[EXPR];
+# into
+#   TYPE[] name;
+#   name = __alloc_array(EXPR);
+# This is line-oriented and safe for the patterns used in tests.
+sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\[[[:space:]]*([^]]+)[[:space:]]*\][[:space:]]*;/\1[] \2;\n\2 = __alloc_array(\3);/g' "$in" > "$tmp_in"
 
 ./build/codegen "$tmp_in" "$out"
 
