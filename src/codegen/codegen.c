@@ -266,7 +266,10 @@ static void cg_free(CG *cg) {
   cpool_free(&cg->const_pool);
   locals_free(&cg->locals);
   free(cg->break_labels);
-  free((void*)cg->defined_names);
+  if (cg->defined_names) {
+    for (int i = 0; i < cg->defined_n; i++) free((void*)cg->defined_names[i]);
+    free((void*)cg->defined_names);
+  }
   free((void*)cg->field_class_names);
   free((void*)cg->field_names);
   free(cg->field_offsets);
@@ -1357,14 +1360,105 @@ static void gen_stmt(CG *cg, const ASTNode *stmt) {
 
 // ------------------------- function generation -------------------------
 
+// Build a mangled type name for a type AST node. Returns malloc'd string (caller must free).
+static char *mangle_type(const ASTNode *type_node) {
+  if (!type_node) return dup_cstr("void");
+
+  // token kinds: type, typeRef (leaf)
+  if (is_token_kind(type_node, "type") || is_token_kind(type_node, "typeRef") || is_token_kind(type_node, "IDENTIFIER")) {
+    return dup_cstr(after_colon(type_node->label));
+  }
+
+  if (type_node->label && strcmp(type_node->label, "genType") == 0 && type_node->numChildren > 0) {
+    // genType: [0]=id, [1]=typeRef (param)
+    const ASTNode *idn = type_node->children[0];
+    const ASTNode *param = (type_node->numChildren > 1) ? type_node->children[1] : NULL;
+    const char *base = idn && is_token_kind(idn, "id") ? after_colon(idn->label) : "gen";
+    if (!param) return dup_cstr(base);
+    char *p = mangle_type(param);
+    size_t n = strlen(base) + 1 + strlen(p) + 1;
+    char *s = (char*)malloc(n);
+    if (!s) { free(p); return dup_cstr(base); }
+    snprintf(s, n, "%s_%s", base, p);
+    free(p);
+    return s;
+  }
+
+  if (type_node->label && strcmp(type_node->label, "array") == 0 && type_node->numChildren > 0) {
+    char *inner = mangle_type(type_node->children[0]);
+    size_t n = strlen(inner) + 5;
+    char *s = (char*)malloc(n);
+    if (!s) { free(inner); return inner; }
+    snprintf(s, n, "%s_arr", inner);
+    free(inner);
+    return s;
+  }
+
+  // fallback: if node has a child token, use it
+  for (int i = 0; i < type_node->numChildren; i++) {
+    const ASTNode *c = type_node->children[i];
+    if (c && c->label && strchr(c->label, ':')) return dup_cstr(after_colon(c->label));
+  }
+
+  return dup_cstr(type_node->label ? type_node->label : "type");
+}
+
+// Return a mangled name for a function including parameter types.
+// Returns malloc'd string (caller may free). Existing callers expect char* that stays alive
+// until cg_free frees the defined names array, so allocating here is fine.
 static const char *get_func_name(const ASTNode *funcDefOrDecl) {
-  if (!funcDefOrDecl || funcDefOrDecl->numChildren < 1) return "unknown";
+  if (!funcDefOrDecl || funcDefOrDecl->numChildren < 1) return dup_cstr("unknown");
   const ASTNode *sig = funcDefOrDecl->children[0];
-  if (!sig || !sig->label || strcmp(sig->label, "signature") != 0) return "unknown";
-  if (sig->numChildren < 2) return "unknown";
+  if (!sig || !sig->label || strcmp(sig->label, "signature") != 0) return dup_cstr("unknown");
+  if (sig->numChildren < 2) return dup_cstr("unknown");
+
   const ASTNode *idn = sig->children[1];
-  if (idn && is_token_kind(idn, "id")) return after_colon(idn->label);
-  return "unknown";
+  const char *base = "unknown";
+  if (idn && is_token_kind(idn, "id")) base = after_colon(idn->label);
+
+  // args are at sig->children[2] -> args -> arglist
+  if (sig->numChildren < 3) return dup_cstr(base);
+  const ASTNode *args = sig->children[2];
+  if (!args || !args->label || strcmp(args->label, "args") != 0) return dup_cstr(base);
+  if (args->numChildren == 0) return dup_cstr(base);
+  const ASTNode *arglist = args->children[0];
+  if (!arglist || !arglist->label || strcmp(arglist->label, "arglist") != 0) return dup_cstr(base);
+
+  // Build mangled: base__T1_T2...
+  // Compute length
+  size_t len = strlen(base) + 3; // base + '__' + null
+  char **parts = NULL;
+  int parts_n = 0;
+  for (int i = 0; i < arglist->numChildren; i++) {
+    const ASTNode *arg = arglist->children[i];
+    if (!arg || !arg->label || strcmp(arg->label, "arg") != 0) continue;
+    const ASTNode *type_node = (arg->numChildren > 0) ? arg->children[0] : NULL;
+    char *t = mangle_type(type_node);
+    if (!t) continue;
+    parts = (char**)realloc(parts, (size_t)(parts_n + 1) * sizeof(char*));
+    parts[parts_n++] = t;
+    len += strlen(t) + 1; // underscore separator
+  }
+
+  if (parts_n == 0) {
+    return dup_cstr(base);
+  }
+
+  char *res = (char*)malloc(len);
+  if (!res) {
+    for (int i = 0; i < parts_n; i++) free(parts[i]);
+    free(parts);
+    return dup_cstr(base);
+  }
+  strcpy(res, base);
+  strcat(res, "__");
+  for (int i = 0; i < parts_n; i++) {
+    strcat(res, parts[i]);
+    if (i + 1 < parts_n) strcat(res, "_");
+    free(parts[i]);
+  }
+  free(parts);
+  return res;
 }
 
 static void emit_prologue(CG *cg) {
@@ -1460,8 +1554,8 @@ static void gen_function_stub(CG *cg, const ASTNode *fn) {
   emit(cg, "  .size %s, .-%s", name, name);
 }
 
-static void gen_function(CG *cg, const ASTNode *fn) {
-  const char *name = get_func_name(fn);
+static void gen_function_with_name(CG *cg, const ASTNode *fn, const char *name) {
+  if (!name) name = "unknown";
   cg->cur_func = name;
 
   locals_free(&cg->locals);
@@ -1514,6 +1608,16 @@ static void gen_function(CG *cg, const ASTNode *fn) {
 
   emit_epilogue(cg);
   emit(cg, "  .size %s, .-%s", name, name);
+
+  /* clear cur_func to avoid dangling pointer usage outside this function */
+  cg->cur_func = NULL;
+}
+
+/* Wrapper kept for compatibility: allocates name, calls the generator and frees name */
+static void gen_function(CG *cg, const ASTNode *fn) {
+  char *name = (char*)get_func_name(fn);
+  gen_function_with_name(cg, fn, name);
+  free(name);
 }
 
 // ------------------------- top-level generation -------------------------
@@ -1896,16 +2000,33 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
     }
   }
   
-  // Second pass: generate code
+  // Second pass: generate code (deduplicate functions with identical mangled names)
+  char **emitted = NULL;
+  int emitted_n = 0;
+
   for (int i = 0; i < items->numChildren; i++) {
     const ASTNode *fn = items->children[i];
     if (!fn || !fn->label) continue;
 
     if (!strcmp(fn->label, "funcDef")) {
-      gen_function(&cg, fn);
+      char *nm = (char*)get_func_name(fn); // allocated
+      int dup = 0;
+      for (int k = 0; k < emitted_n; k++) {
+        if (emitted[k] && !strcmp(emitted[k], nm)) { dup = 1; break; }
+      }
+      if (dup) {
+        emit(&cg, "  # duplicate function '%s' skipped", nm);
+        free(nm);
+        continue;
+      }
+      // record and emit
+      emitted = (char**)realloc(emitted, (size_t)(emitted_n + 1) * sizeof(char*));
+      if (emitted) emitted[emitted_n++] = nm;
+      gen_function_with_name(&cg, fn, nm);
+
     } else if (!strcmp(fn->label, "funcDecl")) {
       const char *nm = get_func_name(fn);
-      // Check if function is defined
+      // Check if function is defined (by earlier collected defined.names)
       int found = 0;
       for (int j = 0; j < defined.n; j++) {
         if (defined.names[j] && !strcmp(defined.names[j], nm)) {
@@ -1920,8 +2041,13 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
         // Keep as extern for standard library functions
         emit(&cg, "  .extern %s", nm);
       }
+      free((void*)nm);
     }
   }
+
+  // free emitted names
+  for (int i = 0; i < emitted_n; i++) free(emitted[i]);
+  free(emitted);
   
   // defined.names memory has been moved into cg.defined_names above; do not free here
 
