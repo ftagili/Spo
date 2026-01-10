@@ -32,7 +32,25 @@ cmake ..
 cmake --build .
 cd ..
 
-./build/codegen "$in" "$out"
+# Preprocess the input into a temporary file so we don't modify the original source.
+# Transform local-sized array declarations like "TYPE name[EXPR];" into
+#   "TYPE[] name; name = __alloc_array(EXPR);"
+# This keeps the original test file unchanged (required by instructor) but
+# makes the parser and codegen work with array declarations that allocate
+# storage at runtime through a helper in runtime.c.
+tmp_in="$(mktemp --suffix=.src)"
+
+# Use Perl to do a safe, general regexp-based transform across the file.
+# Match a word (type) followed by whitespace, an identifier, optional spaces,
+# a bracketed expression, then a semicolon. Replace with array type + alloc.
+perl -0777 -pe '
+    s/\b([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\[\s*([^\]]+?)\s*\]\s*;/\1[] \2;\n\2 = __alloc_array(\3);/gs;
+' "$in" > "$tmp_in"
+
+./build/codegen "$tmp_in" "$out"
+
+# remove temp file
+rm -f "$tmp_in"
 
 # ассемблирование
 gcc -c "$out" -o output/out.o -Wa,--noexecstack
