@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 // Small runtime helpers used by generated code.
 
@@ -20,4 +21,13 @@ void writeByte(int c) {
 // unknown_method when virtual dispatch isn't implemented yet.
 void unknown_method(void) {
     // no-op placeholder
+}
+
+// Allocate a simple array of elements where each element is 8 bytes
+// (the codegen currently assumes 8-byte element size). Return pointer.
+void *__alloc_array(long count) {
+    if (count <= 0) return NULL;
+    size_t sz = (size_t)count * 8u;
+    void *p = malloc(sz);
+    return p;
 }
