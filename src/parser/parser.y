@@ -8,6 +8,7 @@ void yyerror(const char *s);
 int yylex(void);
 %}
 
+/* Семантические типы */
 %union {
     char* str;
     ASTNode* node;
@@ -26,28 +27,25 @@ int yylex(void);
 %token <str> PLUS_ASSIGN MINUS_ASSIGN STAR_ASSIGN SLASH_ASSIGN PERCENT_ASSIGN
 %token COLON DOT NEW AMPERSAND
 
-%type <node> source sourceItemList sourceItem
-%type <node> funcDef funcSignature argList argDefList argDef
-%type <node> typeRef statementBlock statementList statement
-%type <node> varDecl varList varItemList optAssign
-%type <node> ifStmt optElse whileStmt doWhileStmt breakStmt returnStmt
-%type <node> exprStmt expr literal
-%type <node> argExprList exprList
-%type <node> classDef optBase member memberList field fieldList optModifier optTemplate
-%type <node> lvalue
+/* Типы нетерминалов */
+%type <node> source sourceItemList sourceItem funcDef funcSignature argList argDefList argDef
+%type <node> typeRef statementBlock statementList statement varDecl varList varItemList optAssign
+%type <node> ifStmt optElse whileStmt doWhileStmt breakStmt returnStmt exprStmt expr argExprList exprList literal
+%type <node> importSpec optImportSpec classDef optBase member memberList field fieldList optModifier optTypeRef optTemplate
 
 %start source
 
+%debug
+
+/* Приоритеты (ниже -> ниже приоритет) */
 %right ASSIGN PLUS_ASSIGN MINUS_ASSIGN STAR_ASSIGN SLASH_ASSIGN PERCENT_ASSIGN
-%left EQEQ NEQ LT GT LE GE
-%left PLUS MINUS
-%left STAR SLASH PERCENT
+%left  EQEQ NEQ LT GT LE GE
+%left  PLUS MINUS
+%left  STAR SLASH PERCENT
 %right UPLUS UMINUS
-%left DOT
+%left  DOT
 
 %%
-
-/* -------- SOURCE -------- */
 
 source
     : sourceItemList
@@ -55,70 +53,96 @@ source
     ;
 
 sourceItemList
-    : /* empty */ { $$ = ast_create_node("items"); }
+    : /* пусто */
+      { $$ = ast_create_node("items"); }
     | sourceItemList sourceItem
       { $$ = $1; ast_add_child($$, $2); }
     ;
 
 sourceItem
     : funcDef
+      { $$ = $1; }
     | classDef
+      { $$ = $1; }
     ;
 
-/* -------- FUNCTIONS -------- */
-
 funcDef
-    : funcSignature statementBlock
-      { $$ = ast_create_node("funcDef"); ast_add_child($$, $1); ast_add_child($$, $2); }
-    | funcSignature SEMICOLON
-      { $$ = ast_create_node("funcDecl"); ast_add_child($$, $1); }
+    : optImportSpec funcSignature statementBlock
+      { $$ = ast_create_node("funcDef");
+        if ($1) ast_add_child($$, $1);
+        ast_add_child($$, $2); ast_add_child($$, $3); }
+    | optImportSpec funcSignature SEMICOLON
+      { $$ = ast_create_node("funcDecl");
+        if ($1) ast_add_child($$, $1);
+        ast_add_child($$, $2); }
+    ;
+
+optImportSpec
+    : /* пусто */
+      { $$ = NULL; }
+    | importSpec
+      { $$ = $1; }
+    ;
+
+importSpec
+    : EXTERN LPAREN STRING_LITERAL RPAREN
+      { $$ = ast_create_node("import");
+        ASTNode* dll = ast_create_leaf_token("dll", $3); free($3);
+        ast_add_child($$, dll); }
+    | EXTERN LPAREN STRING_LITERAL COMMA STRING_LITERAL RPAREN
+      { $$ = ast_create_node("import");
+        ASTNode* dll = ast_create_leaf_token("dll", $3); free($3);
+        ASTNode* entry = ast_create_leaf_token("entry", $5); free($5);
+        ast_add_child($$, dll); ast_add_child($$, entry); }
     ;
 
 funcSignature
     : typeRef IDENTIFIER LPAREN argList RPAREN
-      {
-        $$ = ast_create_node("signature");
+      { $$ = ast_create_node("signature");
         ast_add_child($$, $1);
-        ast_add_child($$, ast_create_leaf_token("id", $2)); free($2);
+        ASTNode* id = ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id);
         ast_add_child($$, $4);
       }
     ;
 
 argList
-    : /* empty */ { $$ = ast_create_node("args"); }
-    | argDefList { $$ = ast_create_node("args"); ast_add_child($$, $1); }
+    : /* пусто */
+      { $$ = ast_create_node("args"); }
+    | argDefList
+      { $$ = ast_create_node("args"); ast_add_child($$, $1); }
     ;
 
 argDefList
-    : argDef { $$ = ast_create_node("arglist"); ast_add_child($$, $1); }
-    | argDefList COMMA argDef { $$ = $1; ast_add_child($$, $3); }
+    : argDef
+      { $$ = ast_create_node("arglist"); ast_add_child($$, $1); }
+    | argDefList COMMA argDef
+      { $$ = $1; ast_add_child($$, $3); }
     ;
 
 argDef
     : typeRef IDENTIFIER
-      {
-        $$ = ast_create_node("arg");
+      { $$ = ast_create_node("arg");
         ast_add_child($$, $1);
-        ast_add_child($$, ast_create_leaf_token("id", $2)); free($2);
+        ASTNode* id = ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id);
       }
     ;
 
-/* -------- TYPES -------- */
-
 typeRef
-    : BUILTIN_TYPE { $$ = ast_create_leaf_token("type", $1); free($1); }
-    | IDENTIFIER   { $$ = ast_create_leaf_token("typeRef", $1); free($1); }
+    : BUILTIN_TYPE
+      { $$ = ast_create_leaf_token("type", $1); free($1); }
+    | IDENTIFIER
+      { $$ = ast_create_leaf_token("typeRef", $1); free($1); }
     | IDENTIFIER LT typeRef GT
-      {
-        $$ = ast_create_node("genType");
-        ast_add_child($$, ast_create_leaf_token("id", $1)); free($1);
+      { $$ = ast_create_node("genType");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ast_add_child($$, id);
         ast_add_child($$, $3);
       }
     | typeRef LBRACKET RBRACKET
       { $$ = ast_create_node("array"); ast_add_child($$, $1); }
     ;
-
-/* -------- STATEMENTS -------- */
 
 statementBlock
     : LBRACE statementList RBRACE
@@ -126,22 +150,30 @@ statementBlock
     ;
 
 statementList
-    : /* empty */ { $$ = ast_create_node("stmts"); }
-    | statementList statement { $$ = $1; ast_add_child($$, $2); }
+    : /* пусто */
+      { $$ = ast_create_node("stmts"); }
+    | statementList statement
+      { $$ = $1; ast_add_child($$, $2); }
     ;
 
 statement
     : varDecl
+      { $$ = $1; }
     | ifStmt
+      { $$ = $1; }
     | whileStmt
+      { $$ = $1; }
     | doWhileStmt
+      { $$ = $1; }
     | breakStmt
+      { $$ = $1; }
     | returnStmt
+      { $$ = $1; }
     | exprStmt
+      { $$ = $1; }
     | statementBlock
+      { $$ = $1; }
     ;
-
-/* -------- VARIABLES -------- */
 
 varDecl
     : typeRef varList SEMICOLON
@@ -150,29 +182,28 @@ varDecl
 
 varList
     : varItemList
+      { $$ = $1; }
     ;
 
 varItemList
     : IDENTIFIER optAssign
-      {
-        $$ = ast_create_node("vars");
-        ast_add_child($$, ast_create_leaf_token("id", $1)); free($1);
-        ast_add_child($$, $2);
+      { $$ = ast_create_node("vars");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ast_add_child($$, id); ast_add_child($$, $2);
       }
     | varItemList COMMA IDENTIFIER optAssign
-      {
-        $$ = $1;
-        ast_add_child($$, ast_create_leaf_token("id", $3)); free($3);
-        ast_add_child($$, $4);
+      { $$ = $1;
+        ASTNode* id = ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, id); ast_add_child($$, $4);
       }
     ;
 
 optAssign
-    : /* empty */ { $$ = ast_create_node("noinit"); }
-    | ASSIGN expr { $$ = ast_create_node("assign"); ast_add_child($$, $2); }
+    : /* пусто */
+      { $$ = ast_create_node("noinit"); }
+    | ASSIGN expr
+      { $$ = ast_create_node("assign"); ast_add_child($$, $2); }
     ;
-
-/* -------- CONTROL -------- */
 
 ifStmt
     : IF LPAREN expr RPAREN statement optElse
@@ -180,8 +211,10 @@ ifStmt
     ;
 
 optElse
-    : /* empty */ { $$ = ast_create_node("noelse"); }
-    | ELSE statement { $$ = ast_create_node("else"); ast_add_child($$, $2); }
+    : /* пусто */
+      { $$ = ast_create_node("noelse"); }
+    | ELSE statement
+      { $$ = ast_create_node("else"); ast_add_child($$, $2); }
     ;
 
 whileStmt
@@ -195,135 +228,345 @@ doWhileStmt
     ;
 
 breakStmt
-    : BREAK SEMICOLON { $$ = ast_create_node("break"); }
+    : BREAK SEMICOLON
+      { $$ = ast_create_node("break"); }
     ;
 
 returnStmt
-    : RETURN expr SEMICOLON { $$ = ast_create_node("return"); ast_add_child($$, $2); }
-    | RETURN SEMICOLON { $$ = ast_create_node("return"); }
+    : RETURN expr SEMICOLON
+      { $$ = ast_create_node("return"); ast_add_child($$, $2); }
+    | RETURN SEMICOLON
+      { $$ = ast_create_node("return"); }
     ;
 
 exprStmt
-    : expr SEMICOLON { $$ = ast_create_node("exprstmt"); ast_add_child($$, $1); }
+    : expr SEMICOLON
+      { $$ = ast_create_node("exprstmt"); ast_add_child($$, $1); }
     ;
 
-/* -------- EXPRESSIONS -------- */
-
-lvalue
-    : IDENTIFIER
-      { $$ = ast_create_leaf_token("id", $1); free($1); }
-    | expr DOT IDENTIFIER
-      {
-        $$ = ast_create_node("fieldAccess");
-        ast_add_child($$, $1);
-        ast_add_child($$, ast_create_leaf_token("id", $3)); free($3);
-      }
-    | expr LBRACKET argExprList RBRACKET
-      {
-        $$ = ast_create_node("index");
-        ast_add_child($$, $1);
-        ast_add_child($$, $3);
-      }
-    ;
-
+/* --- выражения --- */
 expr
-    : lvalue ASSIGN expr
-      { $$ = ast_create_node("assign"); ast_add_child($$, $1); ast_add_child($$, $3); }
+    /* присваивание */
+    : IDENTIFIER ASSIGN expr
+      { $$ = ast_create_node("assign");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ast_add_child($$, id); ast_add_child($$, $3); }
 
-    | lvalue PLUS_ASSIGN expr
-      { $$ = ast_create_node("compound_assign"); ast_add_child($$, $1);
-        ast_add_child($$, ast_create_leaf_token("op", $2)); free($2);
-        ast_add_child($$, $3); }
+    /* assign to indexed lvalue: a[expr] = expr */
+    | IDENTIFIER LBRACKET argExprList RBRACKET ASSIGN expr
+      { $$ = ast_create_node("assign_index");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ast_add_child($$, id); ast_add_child($$, $3); ast_add_child($$, $6); }
 
-    | expr PLUS expr
+    /* составные присваивания */
+    | IDENTIFIER PLUS_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, id); ast_add_child($$, op); ast_add_child($$, $3); }
+
+    /* allow assignment where LHS is any expression (e.g., a[i], obj.field) */
+    | expr ASSIGN expr
+      { $$ = ast_create_node("assign");
+        ast_add_child($$, $1); ast_add_child($$, $3); }
+    /* compound assigns for general lvalues */
+    | expr PLUS_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ast_add_child($$, $1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr MINUS_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ast_add_child($$, $1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr STAR_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ast_add_child($$, $1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr SLASH_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ast_add_child($$, $1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr PERCENT_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ast_add_child($$, $1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | IDENTIFIER MINUS_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, id); ast_add_child($$, op); ast_add_child($$, $3); }
+    | IDENTIFIER STAR_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, id); ast_add_child($$, op); ast_add_child($$, $3); }
+    | IDENTIFIER SLASH_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, id); ast_add_child($$, op); ast_add_child($$, $3); }
+    | IDENTIFIER PERCENT_ASSIGN expr
+      { $$ = ast_create_node("compound_assign");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ASTNode* op = ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, id); ast_add_child($$, op); ast_add_child($$, $3); }
+
+    /* арифметика */
+    | expr STAR    expr
       { $$ = ast_create_node("binop"); ast_add_child($$, $1);
-        ast_add_child($$, ast_create_leaf_token("op", $2)); free($2);
-        ast_add_child($$, $3); }
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr SLASH   expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr PERCENT expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
 
+    | expr PLUS    expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr MINUS   expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+
+    /* сравнения */
+    | expr LT   expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr GT   expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr LE   expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr GE   expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr EQEQ expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+    | expr NEQ  expr
+      { $$ = ast_create_node("binop"); ast_add_child($$, $1);
+        ASTNode* op=ast_create_leaf_token("op", $2); free($2);
+        ast_add_child($$, op); ast_add_child($$, $3); }
+
+    /* унарные + и - */
     | MINUS expr %prec UMINUS
-      { $$ = ast_create_node("unop"); ast_add_child($$, ast_create_leaf_token("op", $1)); free($1); ast_add_child($$, $2); }
+      { $$ = ast_create_node("unop");
+        ASTNode* op=ast_create_leaf_token("op", $1); free($1);
+        ast_add_child($$, op); ast_add_child($$, $2); }
+    | PLUS  expr %prec UPLUS
+      { $$ = ast_create_node("unop");
+        ASTNode* op=ast_create_leaf_token("op", $1); free($1);
+        ast_add_child($$, op); ast_add_child($$, $2); }
+    /* адрес переменной &var */
+    | AMPERSAND IDENTIFIER
+      { $$ = ast_create_node("address");
+        ASTNode* id = ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id); }
 
-    | LPAREN expr RPAREN { $$ = $2; }
+    /* new ClassName(...) */
+    | NEW IDENTIFIER LPAREN argExprList RPAREN
+      { $$ = ast_create_node("new");
+        ASTNode* id=ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id);
+        ast_add_child($$, $4);
+      }
+    | NEW IDENTIFIER
+      { $$ = ast_create_node("new");
+        ASTNode* id=ast_create_leaf_token("id", $2); free($2);
+        ASTNode* args=ast_create_node("args");
+        ast_add_child($$, id);
+        ast_add_child($$, args);
+      }
+
+    /* доступ к членам: obj.field */
+    | expr DOT IDENTIFIER
+      { $$ = ast_create_node("fieldAccess");
+        ASTNode* id=ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, $1);
+        ast_add_child($$, id);
+      }
+
+    /* вызов метода: obj.method(args) */
+    | expr DOT IDENTIFIER LPAREN argExprList RPAREN
+      { $$ = ast_create_node("methodCall");
+        ASTNode* id=ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, $1);
+        ast_add_child($$, id);
+        ast_add_child($$, $5);
+      }
+
+    /* индекс после точки (если вдруг понадобится): obj.arr[idx] */
+    | expr DOT IDENTIFIER LBRACKET argExprList RBRACKET
+      { $$ = ast_create_node("memberIndex");
+        ASTNode* id=ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, $1);
+        ast_add_child($$, id);
+        ast_add_child($$, $5);
+      }
+
+    /* прочее */
+    | LPAREN expr RPAREN
+      { $$ = $2; }
+    | IDENTIFIER
+      { $$ = ast_create_leaf_token("id", $1); free($1); }
     | literal
-    | lvalue
+      { $$ = $1; }
+    | IDENTIFIER LPAREN argExprList RPAREN
+      { $$ = ast_create_node("call");
+        ASTNode* id=ast_create_leaf_token("id",$1); free($1);
+        ast_add_child($$, id); ast_add_child($$, $3); }
+    | IDENTIFIER LBRACKET argExprList RBRACKET
+      { $$ = ast_create_node("index");
+        ASTNode* id=ast_create_leaf_token("id",$1); free($1);
+        ast_add_child($$, id); ast_add_child($$, $3); }
     ;
 
-/* -------- LITERALS -------- */
+argExprList
+    : /* пусто */
+      { $$ = ast_create_node("args"); }
+    | exprList
+      { $$ = ast_create_node("args"); ast_add_child($$, $1); }
+    ;
+
+exprList
+    : expr
+      { $$ = ast_create_node("list"); ast_add_child($$, $1); }
+    | exprList COMMA expr
+      { $$ = $1; ast_add_child($$, $3); }
+    ;
 
 literal
-    : BOOL_LITERAL   { $$ = ast_create_leaf_token("bool", $1); free($1); }
-    | STRING_LITERAL { $$ = ast_create_leaf_token("string", $1); free($1); }
-    | CHAR_LITERAL   { $$ = ast_create_leaf_token("char", $1); free($1); }
-    | HEX_LITERAL    { $$ = ast_create_leaf_token("hex", $1); free($1); }
-    | BITS_LITERAL   { $$ = ast_create_leaf_token("bits", $1); free($1); }
-    | DEC_LITERAL    { $$ = ast_create_leaf_token("dec", $1); free($1); }
+    : BOOL_LITERAL
+      { $$ = ast_create_leaf_token("bool", $1); free($1); }
+    | STRING_LITERAL
+      { $$ = ast_create_leaf_token("string", $1); free($1); }
+    | CHAR_LITERAL
+      { $$ = ast_create_leaf_token("char", $1); free($1); }
+    | HEX_LITERAL
+      { $$ = ast_create_leaf_token("hex", $1); free($1); }
+    | BITS_LITERAL
+      { $$ = ast_create_leaf_token("bits", $1); free($1); }
+    | DEC_LITERAL
+      { $$ = ast_create_leaf_token("dec", $1); free($1); }
     ;
 
-/* -------- CLASSES -------- */
+/* --------- КЛАССЫ / НАСЛЕДОВАНИЕ --------- */
 
+/* Add optional template declaration before class */
 optTemplate
-    : /* empty */ { $$ = NULL; }
+    : /* пусто */
+      { $$ = NULL; }
     | TEMPLATE LT IDENTIFIER GT
-      {
-        $$ = ast_create_node("template");
-        ast_add_child($$, ast_create_leaf_token("id", $3)); free($3);
+      { $$ = ast_create_node("template");
+        ASTNode* id = ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, id);
       }
     ;
 
 classDef
     : optTemplate CLASS IDENTIFIER optBase LBRACE memberList RBRACE
-      {
-        $$ = ast_create_node("class");
-        if ($1) ast_add_child($$, $1);
-        ast_add_child($$, ast_create_leaf_token("id", $3)); free($3);
+      { $$ = ast_create_node("class");
+        if ($1) ast_add_child($$, $1); /* template param, if any */
+        ASTNode* id = ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, id);
         if ($4) ast_add_child($$, $4);
         ast_add_child($$, $6);
       }
     ;
 
+/* optBase: ": BaseClass" или пусто */
 optBase
-    : /* empty */ { $$ = NULL; }
+    : /* пусто */
+      { $$ = NULL; }
     | COLON IDENTIFIER
-      {
-        $$ = ast_create_node("extends");
-        ast_add_child($$, ast_create_leaf_token("id", $2)); free($2);
+      { $$ = ast_create_node("extends");
+        ASTNode* base = ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, base);
       }
     ;
 
 memberList
-    : /* empty */ { $$ = ast_create_node("members"); }
-    | memberList member { $$ = $1; ast_add_child($$, $2); }
+    : /* пусто */
+      { $$ = ast_create_node("members"); }
+    | memberList member
+      { $$ = $1; ast_add_child($$, $2); }
     ;
 
 member
     : optModifier funcDef
-      { $$ = ast_create_node("member"); if ($1) ast_add_child($$, $1); ast_add_child($$, $2); }
+      { $$ = ast_create_node("member");
+        if ($1) ast_add_child($$, $1);
+        ast_add_child($$, $2); }
+    | optModifier typeRef IDENTIFIER LPAREN argList RPAREN statement
+      { $$ = ast_create_node("member");
+        if ($1) ast_add_child($$, $1);
+        /* build signature */
+        ASTNode* sig = ast_create_node("signature");
+        ast_add_child(sig, $2);
+        ASTNode* id = ast_create_leaf_token("id", $3); free($3);
+        ast_add_child(sig, id);
+        ast_add_child(sig, $5);
+        /* create funcDef node and attach body */
+        ASTNode* f = ast_create_node("funcDef");
+        ast_add_child(f, sig);
+        ast_add_child(f, $7);
+        ast_add_child($$, f);
+      }
     | optModifier field
-      { $$ = ast_create_node("member"); if ($1) ast_add_child($$, $1); ast_add_child($$, $2); }
+      { $$ = ast_create_node("member");
+        if ($1) ast_add_child($$, $1);
+        ast_add_child($$, $2); }
     ;
 
 optModifier
-    : /* empty */ { $$ = NULL; }
-    | PUBLIC  { $$ = ast_create_leaf_token("modifier", "public"); }
-    | PRIVATE { $$ = ast_create_leaf_token("modifier", "private"); }
+    : /* пусто */
+      { $$ = NULL; }
+    | PUBLIC
+      { $$ = ast_create_leaf_token("modifier", "public"); }
+    | PRIVATE
+      { $$ = ast_create_leaf_token("modifier", "private"); }
     ;
 
 field
     : typeRef fieldList SEMICOLON
-      { $$ = ast_create_node("field"); ast_add_child($$, $1); ast_add_child($$, $2); }
+      { $$ = ast_create_node("field");
+        ast_add_child($$, $1);
+        ast_add_child($$, $2); }
+    ;
+
+optTypeRef
+    : /* пусто */
+      { $$ = NULL; }
+    | typeRef
+      { $$ = $1; }
     ;
 
 fieldList
     : IDENTIFIER
-      {
-        $$ = ast_create_node("fieldlist");
-        ast_add_child($$, ast_create_leaf_token("id", $1)); free($1);
-      }
+      { $$ = ast_create_node("fieldlist");
+        ASTNode* id = ast_create_leaf_token("id", $1); free($1);
+        ast_add_child($$, id); }
     | fieldList COMMA IDENTIFIER
-      {
-        $$ = $1;
-        ast_add_child($$, ast_create_leaf_token("id", $3)); free($3);
-      }
+      { $$ = $1;
+        ASTNode* id = ast_create_leaf_token("id", $3); free($3);
+        ast_add_child($$, id); }
     ;
 
 %%
