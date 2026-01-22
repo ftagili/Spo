@@ -146,6 +146,10 @@ typeRef
         ast_add_child($$, id);
         ast_add_child($$, $3);
       }
+    /* pointer type: e.g. void* or MyType* */
+    | typeRef STAR
+      { $$ = ast_create_node("ptr"); ast_add_child($$, $1);
+        ASTNode* p = ast_create_leaf_token("ptrsym", $2); free($2); ast_add_child($$, p); }
     | typeRef LBRACKET RBRACKET
       { $$ = ast_create_node("array"); ast_add_child($$, $1); }
     ;
