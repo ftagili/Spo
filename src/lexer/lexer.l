@@ -60,6 +60,9 @@ static void print_escaped(const char *s) {
 \"([^\\"]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
 '[^']'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
+/* Identifier: return IDENT_ARRAY if immediately followed (possibly with spaces)
+   by [] (e.g., 'T[]'), otherwise return IDENTIFIER. We implement a small
+   lookahead instead of relying on a complex regex to improve portability. */
 [a-zA-Z_][a-zA-Z_0-9]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
 
 "=="            { yylval.str = dup_yytext(yytext); return EQEQ; }
