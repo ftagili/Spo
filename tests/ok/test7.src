@@ -1,83 +1,32 @@
-type Vec2i {
-    x : int;
-    y : int;
+// Объявления стандартных функций
+int printf(string format, ...);
+int puts(string s);
+void* malloc(int size);
 
-    init(a : int, b : int) {
-        x = a;
-        y = b;
-    }
-}
+// Шаблонный класс List<T>
+template <T> class List {
+    T[] arr;
+    int count;
+    int capacity;
 
-fun makeVec2i(x : int, y : int) : Vec2i {
-    var v : Vec2i;
-    v.init(x, y);
-    return v;
-}
-
-/* =========================
-   Базовый ввод / вывод
-   ========================= */
-
-fun printInt(x : int) {
-    /* runtime */
-}
-
-fun writeByte(x : int) {
-    /* runtime */
-}
-
-/* =========================
-   Перегрузка printValue
-   ========================= */
-
-fun printValue(n : int) {
-    printInt(n);
-    writeByte(10);
-}
-
-fun printValue(v : Vec2i) {
-    writeByte('x');
-    writeByte('=');
-    printInt(v.x);
-    writeByte(',');
-    writeByte('y');
-    writeByte('=');
-    printInt(v.y);
-    writeByte(10);
-}
-
-/* =========================
-   Шаблон List<T>
-   ========================= */
-
-template <T>
-type List {
-    arr : T[];
-    count : int;
-    capacity : int;
-
-    init() {
-        capacity = 3;
+    void init() {
+        arr = new T[3];
         count = 0;
-        arr = alloc<T>(capacity);
+        capacity = 3;
     }
 
-    expand() {
+    void expand() {
         capacity = capacity * 2;
-        var newArr : T[];
-        newArr = alloc<T>(capacity);
-
-        var n : int;
-        n = 0;
+        T[] y = new T[capacity];
+        int n = 0;
         while (n < count) {
-            newArr[n] = arr[n];
+            y[n] = arr[n];
             n = n + 1;
         }
-
-        arr = newArr;
+        arr = y;
     }
 
-    add(value : T) {
+    void add(T value) {
         if (count >= capacity) {
             expand();
         }
@@ -85,70 +34,96 @@ type List {
         count = count + 1;
     }
 
-    printValues() {
-        var n : int;
-        n = 0;
+    void printValues() {
+        int n = 0;
         while (n < count) {
-            printValue(arr[n]);   /* перегрузка */
+            printValue(arr[n]);
             n = n + 1;
         }
     }
 }
 
-/* =========================
-   Перегрузка sum
-   ========================= */
+// Класс Vec2i
+class Vec2i {
+    int x;
+    int y;
 
-fun sum(a : List<int>) : int {
-    var n : int;
-    var s : int;
+    void init(int a, int b) {
+        x = a;
+        y = b;
+    }
+}
 
-    n = 0;
-    s = 0;
+// Конструктор Vec2i
+Vec2i makeVec2i(int x, int y) {
+    Vec2i v = new Vec2i();
+    v.init(x, y);
+    return v;
+}
 
+// Вспомогательные функции вывода
+void printInt(int x) {
+    printf("%d", x);
+}
+
+void writeByte(int c) {
+    printf("%c", c);
+}
+
+// Перегруженная функция printValue для int
+void printValue(int n) {
+    printInt(n);
+    writeByte(10); // '\n'
+}
+
+// Перегруженная функция printValue для Vec2i
+void printValue(Vec2i v) {
+    writeByte('x');
+    writeByte('=');
+    printInt(v.x);
+    writeByte(',');
+    writeByte('y');
+    writeByte('=');
+    printInt(v.y);
+    writeByte(10); // '\n'
+}
+
+// Перегруженная функция sum для List<int>
+int sum(List<int> a) {
+    int n = 0;
+    int s = 0;
     while (n < a.count) {
-        s = s + a.arr[n];
+        s = s + a[n]; // индексация через []
         n = n + 1;
     }
-
     return s;
 }
 
-fun sum(a : List<Vec2i>) : Vec2i {
-    var n : int;
-    var s : Vec2i;
-
-    n = 0;
-    s = makeVec2i(0, 0);
-
+// Перегруженная функция sum для List<Vec2i>
+Vec2i sum(List<Vec2i> a) {
+    int n = 0;
+    Vec2i s = makeVec2i(0, 0);
     while (n < a.count) {
-        var v : Vec2i;
-        v = a.arr[n];
+        Vec2i v = a[n];
         s = makeVec2i(s.x + v.x, s.y + v.y);
         n = n + 1;
     }
-
     return s;
 }
 
-/* =========================
-   main
-   ========================= */
-
-fun main() {
-    var vn : List<int>;
+// Основная функция
+int main() {
+    List<int> vn = new List<int>();
     vn.init();
 
-    var n : int;
-    n = 0;
+    int n = 0;
     while (n < 20) {
         vn.add(n);
         n = n + 1;
     }
-
     vn.printValues();
 
-    var vv : List<Vec2i>;
+    List<Vec2i> vv = new List<Vec2i>();
     vv.init();
 
     n = 0;
@@ -156,16 +131,18 @@ fun main() {
         vv.add(makeVec2i(n, 20 - n));
         n = n + 1;
     }
-
     vv.printValues();
 
-    printInt(sum(vn));
+    // Вывод сумм
+    int sum_int = sum(vn);
+    printInt(sum_int);
+    writeByte(10);
 
-    var vx : Vec2i;
-    vx = sum(vv);
+    Vec2i sum_vec = sum(vv);
+    printInt(sum_vec.x);
+    writeByte(',');
+    printInt(sum_vec.y);
+    writeByte(10);
 
-    writeByte(',');
-    printInt(vx.x);
-    writeByte(',');
-    printInt(vx.y);
+    return 0;
 }
