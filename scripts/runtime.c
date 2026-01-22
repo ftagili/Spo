@@ -15,6 +15,20 @@ void printInt(int64_t n) {
 }
 
 /* =========================
+   Совместимость с test6
+   ========================= */
+
+/* test6 ожидает print_int */
+void print_int(int64_t n) {
+    printInt(n);
+}
+
+/* test6 ожидает print_int__print_int */
+void print_int__print_int(int64_t n) {
+    printInt(n);
+}
+
+/* =========================
    Vec2i
    ========================= */
 
@@ -24,9 +38,7 @@ typedef struct {
 } Vec2i;
 
 /*
- * ВАЖНО:
- * codegen может вызывать init с NULL self.
- * Поэтому обязательно проверяем.
+ * codegen может вызывать init с NULL self
  */
 void Vec2i__init(Vec2i *self, int64_t x, int64_t y) {
     if (!self) return;
@@ -60,9 +72,6 @@ typedef struct {
     ListNode *tail;
 } List;
 
-/*
- * self может быть NULL — не падаем
- */
 void List__init(List *self) {
     if (!self) return;
     self->head = NULL;
