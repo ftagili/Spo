@@ -23,24 +23,31 @@ typedef struct {
     int64_t y;
 } Vec2i;
 
+/*
+ * ВАЖНО:
+ * codegen может вызывать init с NULL self.
+ * Поэтому обязательно проверяем.
+ */
 void Vec2i__init(Vec2i *self, int64_t x, int64_t y) {
+    if (!self) return;
     self->x = x;
     self->y = y;
 }
 
 Vec2i *makeVec2i(int64_t x, int64_t y) {
     Vec2i *v = malloc(sizeof(Vec2i));
+    if (!v) return NULL;
     Vec2i__init(v, x, y);
     return v;
 }
 
-/* Используется в sum(List<Vec2i>) */
+/* используется в sum(List<Vec2i>) */
 Vec2i *sum__makeVec2i(int64_t x, int64_t y) {
     return makeVec2i(x, y);
 }
 
 /* =========================
-   List (односвязный список)
+   List
    ========================= */
 
 typedef struct ListNode {
@@ -53,13 +60,21 @@ typedef struct {
     ListNode *tail;
 } List;
 
+/*
+ * self может быть NULL — не падаем
+ */
 void List__init(List *self) {
+    if (!self) return;
     self->head = NULL;
     self->tail = NULL;
 }
 
 void List__add(List *self, void *value) {
+    if (!self) return;
+
     ListNode *n = malloc(sizeof(ListNode));
+    if (!n) return;
+
     n->value = value;
     n->next = NULL;
 
@@ -96,6 +111,8 @@ void printValue_Vec2i__writeByte(int c) {
 }
 
 void printValue_Vec2i(Vec2i *v) {
+    if (!v) return;
+
     writeByte('(');
     printInt(v->x);
     writeByte(',');
@@ -109,6 +126,11 @@ void printValue_Vec2i(Vec2i *v) {
    ========================= */
 
 void List__printValues(List *self) {
+    if (!self) {
+        writeByte('\n');
+        return;
+    }
+
     writeByte('[');
 
     ListNode *cur = self->head;
@@ -122,7 +144,9 @@ void List__printValues(List *self) {
         first = 0;
 
         Vec2i *v = (Vec2i *)cur->value;
-        printValue_Vec2i(v);
+        if (v) {
+            printValue_Vec2i(v);
+        }
 
         cur = cur->next;
     }
