@@ -58,6 +58,8 @@ static void print_escaped(const char *s) {
 \"([^\\\n]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
 \'([^\\\n]|\\.)\'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
+[A-Za-z_][A-Za-z0-9_]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
+
 "=="            { yylval.str = dup_yytext(yytext); return EQEQ; }
 "!="            { yylval.str = dup_yytext(yytext); return NEQ; }
 "<="            { yylval.str = dup_yytext(yytext); return LE; }
