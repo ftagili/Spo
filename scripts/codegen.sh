@@ -46,7 +46,7 @@ tmp_in="$(mktemp --suffix=.src)"
 #   TYPE[] name;
 #   name = __alloc_array(EXPR);
 # This is line-oriented and safe for the patterns used in tests.
-sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\[[[:space:]]*([^]]+)[[:space:]]*\][[:space:]]*;/\1[] \2;\n\2 = __alloc_array(\3);/g' "$in" > "$tmp_in"
+LC_ALL=C sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\[[[:space:]]*([^]]+)[[:space:]]*\][[:space:]]*;/\1[] \2;\n\2 = __alloc_array(\3);/g' "$in" > "$tmp_in"
 
 ./build/codegen "$tmp_in" "$out"
 
