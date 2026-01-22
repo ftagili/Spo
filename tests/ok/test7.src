@@ -1,122 +1,171 @@
-template <T> class List {
-    T[] arr;
-    int count;
-    int capacity;
- 
-    void init() {
-        int x[3];
-        arr = x;
-        count = 0;
-        capacity = 3;
+type Vec2i {
+    x : int;
+    y : int;
+
+    init(a : int, b : int) {
+        x = a;
+        y = b;
     }
-    void expand() {
+}
+
+fun makeVec2i(x : int, y : int) : Vec2i {
+    var v : Vec2i;
+    v.init(x, y);
+    return v;
+}
+
+/* =========================
+   Базовый ввод / вывод
+   ========================= */
+
+fun printInt(x : int) {
+    /* runtime */
+}
+
+fun writeByte(x : int) {
+    /* runtime */
+}
+
+/* =========================
+   Перегрузка printValue
+   ========================= */
+
+fun printValue(n : int) {
+    printInt(n);
+    writeByte(10);
+}
+
+fun printValue(v : Vec2i) {
+    writeByte('x');
+    writeByte('=');
+    printInt(v.x);
+    writeByte(',');
+    writeByte('y');
+    writeByte('=');
+    printInt(v.y);
+    writeByte(10);
+}
+
+/* =========================
+   Шаблон List<T>
+   ========================= */
+
+template <T>
+type List {
+    arr : T[];
+    count : int;
+    capacity : int;
+
+    init() {
+        capacity = 3;
+        count = 0;
+        arr = alloc<T>(capacity);
+    }
+
+    expand() {
         capacity = capacity * 2;
-        int y[capacity];
-        int n = 0;
+        var newArr : T[];
+        newArr = alloc<T>(capacity);
+
+        var n : int;
+        n = 0;
         while (n < count) {
-            y[n] = arr[n];
+            newArr[n] = arr[n];
             n = n + 1;
         }
-        arr = y;
+
+        arr = newArr;
     }
-    void add(T value) {
+
+    add(value : T) {
         if (count >= capacity) {
             expand();
         }
         arr[count] = value;
         count = count + 1;
     }
-    void printValues() {
-        int n = 0;
+
+    printValues() {
+        var n : int;
+        n = 0;
         while (n < count) {
-            printValue(arr[n]);
+            printValue(arr[n]);   /* перегрузка */
             n = n + 1;
         }
     }
 }
- 
-int sum(List<int> a) {
-    int n = 0;
-    int s = 0; 
+
+/* =========================
+   Перегрузка sum
+   ========================= */
+
+fun sum(a : List<int>) : int {
+    var n : int;
+    var s : int;
+
+    n = 0;
+    s = 0;
+
     while (n < a.count) {
-        s = s + a[n];
-    }
-    return s;
-}
- 
-class Vec2i {
-    int x;
-    int y;
- 
-    void init(int a, int b) {
-        x = a;
-        y = b;
-    }
-}
- 
-Vec2i makeVec2i(int x, int y) {
-    Vec2i v;
-    v.init(x, y);
-    return v;
-}
- 
- 
-int sum(List<int> a) {
-    int n = 0;
-    int s = 0; 
-    while (n < a.count) {
-        s = s + a[n];
+        s = s + a.arr[n];
         n = n + 1;
     }
+
     return s;
 }
- 
-Vec2i sum(List<Vec2i> a) {
-    int n = 0;
-    Vec2i s = makeVec2i(0, 0);
+
+fun sum(a : List<Vec2i>) : Vec2i {
+    var n : int;
+    var s : Vec2i;
+
+    n = 0;
+    s = makeVec2i(0, 0);
+
     while (n < a.count) {
-        Vec2i v = a[n];
+        var v : Vec2i;
+        v = a.arr[n];
         s = makeVec2i(s.x + v.x, s.y + v.y);
         n = n + 1;
     }
+
     return s;
 }
- 
-void printValue_int(int n) {
-    printInt(n);
-    writeByte(10);
-}
 
-void printValue_Vec2i(Vec2i v) {
-    writeByte('x');
-    writeByte('=');
-    printInt(v.x);
-    writeByte(10);
-    writeByte('y');
-    writeByte('='); 
-    printInt(v.y);
-    writeByte(10);
-}
- 
-int main() {
-    List<int> vn;
+/* =========================
+   main
+   ========================= */
+
+fun main() {
+    var vn : List<int>;
     vn.init();
- 
-    int n = 0;
+
+    var n : int;
+    n = 0;
     while (n < 20) {
         vn.add(n);
         n = n + 1;
     }
+
     vn.printValues();
- 
-    List<Vec2i> vv;
+
+    var vv : List<Vec2i>;
     vv.init();
- 
+
     n = 0;
     while (n < 20) {
         vv.add(makeVec2i(n, 20 - n));
         n = n + 1;
     }
- 
+
     vv.printValues();
+
+    printInt(sum(vn));
+
+    var vx : Vec2i;
+    vx = sum(vv);
+
+    writeByte(',');
+    printInt(vx.x);
+    writeByte(',');
+    printInt(vx.y);
 }
