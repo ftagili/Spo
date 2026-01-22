@@ -20,6 +20,17 @@ extern FILE *yyin;
 extern int yyparse(void);
 extern ASTNode *ast_get_root(void);
 
+/* If input has an optional UTF-8 BOM, consume it so lexer/parser don't see
+   unexpected bytes at start of file. */
+static void skip_utf8_bom(FILE *f) {
+  if (!f) return;
+  unsigned char bom[3];
+  size_t n = fread(bom, 1, 3, f);
+  if (n != 3 || bom[0] != 0xEF || bom[1] != 0xBB || bom[2] != 0xBF) {
+    fseek(f, 0, SEEK_SET);
+  }
+}
+
 static int parse_stream(FILE *in, const char *vname) {
   (void)vname; /* подавляем предупреждение о неиспользуемом параметре */
   yyin = in;
@@ -39,7 +50,8 @@ int analyze_file(const char *path) {
 #ifdef _WIN32
   _setmode(_fileno(f), _O_BINARY);
 #endif
-
+  /* Skip optional UTF-8 BOM to avoid lexer errors on files created with BOM */
+  skip_utf8_bom(f);
   int err = parse_stream(f, path);
   fclose(f);
 
@@ -56,6 +68,8 @@ int analyze_file_to_dot(const char *input_path, const char *dot_output_path) {
 #ifdef _WIN32
   _setmode(_fileno(f), _O_BINARY);
 #endif
+  /* Skip optional UTF-8 BOM */
+  skip_utf8_bom(f);
   int err = parse_stream(f, input_path);
   fclose(f);
   if (err != 0) {
