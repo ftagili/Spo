@@ -16,6 +16,7 @@ int yylex(void);
 
 /* Токены */
 %token <str> IDENTIFIER
+%token <str> IDENT_ARRAY
 %token <str> BOOL_LITERAL STRING_LITERAL CHAR_LITERAL HEX_LITERAL BITS_LITERAL DEC_LITERAL
 %token IF ELSE WHILE DO BREAK RETURN
 %token EXTERN CLASS PUBLIC PRIVATE
@@ -140,6 +141,13 @@ typeRef
       { $$ = ast_create_leaf_token("type", $1); free($1); }
     | IDENTIFIER
       { $$ = ast_create_leaf_token("typeRef", $1); free($1); }
+    /* identifier with [] lexed as a single token by the scanner (IDENT_ARRAY) */
+    | IDENT_ARRAY
+      { $$ = ast_create_node("array");
+        /* create child typeRef node from the identifier name */
+        ASTNode* t = ast_create_leaf_token("typeRef", $1); free($1);
+        ast_add_child($$, t);
+      }
     | IDENTIFIER LT typeRef GT
       { $$ = ast_create_node("genType");
         ASTNode* id = ast_create_leaf_token("id", $1); free($1);
