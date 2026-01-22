@@ -21,14 +21,11 @@ static void print_escaped(const char *s) {
       case '\r': fputs("\\r", stderr); break;
       case '\t': fputs("\\t", stderr); break;
       default:
-        if (c >= 32 && c < 127) {
-          fputc(c, stderr);
-        } else {
-          fprintf(stderr, "\\x%02x", c);
-        }
+        if (c >= 32 && c < 127) fputc(c, stderr);
+        else fprintf(stderr, "\\x%02x", c);
     }
   }
-  fputs("'\n", stderr);
+  fputs("'\\n", stderr);
 }
 %}
 
@@ -38,18 +35,19 @@ static void print_escaped(const char *s) {
 %option yylineno
 
 %%
-"if"            return IF;
-"else"          return ELSE;
-"while"         return WHILE;
-"do"            return DO;
-"break"         return BREAK;
-"return"        return RETURN;
-"extern"        return EXTERN;
-"class"         return CLASS;
-"public"        return PUBLIC;
-"private"       return PRIVATE;
-"new"           return NEW;
-"template"      return TEMPLATE;
+
+"if"            { return IF; }
+"else"          { return ELSE; }
+"while"         { return WHILE; }
+"do"            { return DO; }
+"break"         { return BREAK; }
+"return"        { return RETURN; }
+"extern"        { return EXTERN; }
+"class"         { return CLASS; }
+"public"        { return PUBLIC; }
+"private"       { return PRIVATE; }
+"new"           { return NEW; }
+"template"      { return TEMPLATE; }
 
 "bool"|"byte"|"int"|"uint"|"long"|"ulong"|"char"|"string"|"void"  { yylval.str = dup_yytext(yytext); return BUILTIN_TYPE; }
 
@@ -57,13 +55,8 @@ static void print_escaped(const char *s) {
 0[xX][0-9A-Fa-f]+       { yylval.str = dup_yytext(yytext); return HEX_LITERAL; }
 0[bB][01]+              { yylval.str = dup_yytext(yytext); return BITS_LITERAL; }
 [0-9]+                  { yylval.str = dup_yytext(yytext); return DEC_LITERAL; }
-\"([^\\"]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
-'[^']'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
-
-/* Identifier: return IDENT_ARRAY if immediately followed (possibly with spaces)
-   by [] (e.g., 'T[]'), otherwise return IDENTIFIER. We implement a small
-   lookahead instead of relying on a complex regex to improve portability. */
-[a-zA-Z_][a-zA-Z_0-9]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
+"\"([^\\\"]|\\.)*\""  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
+"'([^\\']|\\.)'"                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
 "=="            { yylval.str = dup_yytext(yytext); return EQEQ; }
 "!="            { yylval.str = dup_yytext(yytext); return NEQ; }
@@ -84,25 +77,25 @@ static void print_escaped(const char *s) {
 "/"             { yylval.str = dup_yytext(yytext); return SLASH; }
 "%"             { yylval.str = dup_yytext(yytext); return PERCENT; }
 
-"="             return ASSIGN;
-"&"             return AMPERSAND;
+"="             { return ASSIGN; }
+"&"             { return AMPERSAND; }
 
-"{"     return LBRACE;
-"}"     return RBRACE;
-"("     return LPAREN;
-")"     return RPAREN;
-";"     return SEMICOLON;
-","     return COMMA;
-"["     return LBRACKET;
-"]"     return RBRACKET;
+"{"     { return LBRACE; }
+"}"     { return RBRACE; }
+"("     { return LPAREN; }
+")"     { return RPAREN; }
+";"     { return SEMICOLON; }
+","     { return COMMA; }
+"["     { return LBRACKET; }
+"]"     { return RBRACKET; }
 "..."   { yylval.str = dup_yytext(yytext); return ELLIPSIS; }
-"."     return DOT;
-":"     return COLON;
+"."     { return DOT; }
+":"     { return COLON; }
 
-"/*"([^*]|\*+[^*/])*\*+"/"  { /* multi-line comment */ }
-"//"[^\n]*                   { /* single-line comment */ }
+"/*"([^*]|\*+[^*/])*\*+/  { /* multi-line comment */ }
+"//"[^\n]*                 { /* single-line comment */ }
 
-[[:space:]]+     { }
+[ \t\r\n]+     { /* skip whitespace */ }
 .                { print_escaped(yytext); }
 
 %%
