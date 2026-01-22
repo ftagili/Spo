@@ -3,7 +3,6 @@
 #include "../../build/parser.tab.h"
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 static char* dup_yytext(const char* s) {
   size_t n = strlen(s) + 1;
@@ -38,17 +37,6 @@ static void print_escaped(const char *s) {
 %option noinput
 
 %%
-/* =========================
-   Комментарии (САМЫЕ ПЕРВЫЕ!)
-   ========================= */
-
-"/*"([^*]|\*+[^*/])*\*+"/"  { /* skip multi-line comment */ }
-"//"[^\n]*                  { /* skip single-line comment */ }
-
-/* =========================
-   Ключевые слова
-   ========================= */
-
 "if"            return IF;
 "else"          return ELSE;
 "while"         return WHILE;
@@ -62,114 +50,54 @@ static void print_escaped(const char *s) {
 "new"           return NEW;
 "template"      return TEMPLATE;
 
-/* =========================
-   Встроенные типы
-   ========================= */
+"bool"|"byte"|"int"|"uint"|"long"|"ulong"|"char"|"string"|"void"  { yylval.str = dup_yytext(yytext); return BUILTIN_TYPE; }
 
-"bool"|"byte"|"int"|"uint"|"long"|"ulong"|"char"|"string"|"void" {
-    yylval.str = dup_yytext(yytext);
-    return BUILTIN_TYPE;
-}
+"true"|"false"  { yylval.str = dup_yytext(yytext); return BOOL_LITERAL; }
+0[xX][0-9A-Fa-f]+       { yylval.str = dup_yytext(yytext); return HEX_LITERAL; }
+0[bB][01]+              { yylval.str = dup_yytext(yytext); return BITS_LITERAL; }
+[0-9]+                  { yylval.str = dup_yytext(yytext); return DEC_LITERAL; }
+\"([^\\"]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
+'[^']'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
-/* =========================
-   Литералы
-   ========================= */
+[a-zA-Z_][a-zA-Z_0-9]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
 
-"true"|"false" {
-    yylval.str = dup_yytext(yytext);
-    return BOOL_LITERAL;
-}
+"=="            { yylval.str = dup_yytext(yytext); return EQEQ; }
+"!="            { yylval.str = dup_yytext(yytext); return NEQ; }
+"<="            { yylval.str = dup_yytext(yytext); return LE; }
+">="            { yylval.str = dup_yytext(yytext); return GE; }
+"<"             { yylval.str = dup_yytext(yytext); return LT; }
+">"             { yylval.str = dup_yytext(yytext); return GT; }
 
-0[xX][0-9A-Fa-f]+ {
-    yylval.str = dup_yytext(yytext);
-    return HEX_LITERAL;
-}
+"+="            { yylval.str = dup_yytext(yytext); return PLUS_ASSIGN; }
+"-="            { yylval.str = dup_yytext(yytext); return MINUS_ASSIGN; }
+"*="            { yylval.str = dup_yytext(yytext); return STAR_ASSIGN; }
+"/="            { yylval.str = dup_yytext(yytext); return SLASH_ASSIGN; }
+"%="            { yylval.str = dup_yytext(yytext); return PERCENT_ASSIGN; }
 
-0[bB][01]+ {
-    yylval.str = dup_yytext(yytext);
-    return BITS_LITERAL;
-}
+"+"             { yylval.str = dup_yytext(yytext); return PLUS; }
+"-"             { yylval.str = dup_yytext(yytext); return MINUS; }
+"*"             { yylval.str = dup_yytext(yytext); return STAR; }
+"/"             { yylval.str = dup_yytext(yytext); return SLASH; }
+"%"             { yylval.str = dup_yytext(yytext); return PERCENT; }
 
-[0-9]+ {
-    yylval.str = dup_yytext(yytext);
-    return DEC_LITERAL;
-}
+"="             return ASSIGN;
+"&"             return AMPERSAND;
 
-\"([^\\"]|\\.)*\" {
-    yylval.str = dup_yytext(yytext);
-    return STRING_LITERAL;
-}
+"{"     return LBRACE;
+"}"     return RBRACE;
+"("     return LPAREN;
+")"     return RPAREN;
+";"     return SEMICOLON;
+","     return COMMA;
+"["     return LBRACKET;
+"]"     return RBRACKET;
+"."     return DOT;
+":"     return COLON;
 
-/* === CHAR literal -> INT === */
-'\\n'  { yylval.int_val = '\n'; return CHAR_LITERAL; }
-'\\t'  { yylval.int_val = '\t'; return CHAR_LITERAL; }
-'\\r'  { yylval.int_val = '\r'; return CHAR_LITERAL; }
-'\\\\' { yylval.int_val = '\\'; return CHAR_LITERAL; }
-'[^\\']' {
-    yylval.int_val = yytext[1];
-    return CHAR_LITERAL;
-}
+"/*"([^*]|\*+[^*/])*\*+"/"  { /* multi-line comment */ }
+"//"[^\n]*                   { /* single-line comment */ }
 
-/* =========================
-   Идентификаторы
-   ========================= */
-
-[a-zA-Z_][a-zA-Z_0-9]* {
-    yylval.str = dup_yytext(yytext);
-    return IDENTIFIER;
-}
-
-/* =========================
-   Операторы
-   ========================= */
-
-"==" { return EQEQ; }
-"!=" { return NEQ; }
-"<=" { return LE; }
-">=" { return GE; }
-"<"  { return LT; }
-">"  { return GT; }
-
-"+=" { return PLUS_ASSIGN; }
-"-=" { return MINUS_ASSIGN; }
-"*=" { return STAR_ASSIGN; }
-"/=" { return SLASH_ASSIGN; }
-"%=" { return PERCENT_ASSIGN; }
-
-"+"  { return PLUS; }
-"-"  { return MINUS; }
-"*"  { return STAR; }
-"/"  { return SLASH; }
-"%"  { return PERCENT; }
-
-"="  { return ASSIGN; }
-"&"  { return AMPERSAND; }
-
-/* =========================
-   Разделители
-   ========================= */
-
-"{" { return LBRACE; }
-"}" { return RBRACE; }
-"(" { return LPAREN; }
-")" { return RPAREN; }
-";" { return SEMICOLON; }
-"," { return COMMA; }
-"[" { return LBRACKET; }
-"]" { return RBRACKET; }
-"." { return DOT; }
-":" { return COLON; }
-
-/* =========================
-   Пробелы
-   ========================= */
-
-[[:space:]]+ { }
-
-/* =========================
-   Ошибки
-   ========================= */
-
-. { print_escaped(yytext); }
+[[:space:]]+     { }
+.                { print_escaped(yytext); }
 
 %%
