@@ -58,22 +58,6 @@ static void print_escaped(const char *s) {
 \"([^\\\n]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
 \'([^\\\n]|\\.)\'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
-[A-Za-z_][A-Za-z0-9_]*[ \t]*\[\] {
-  /* Match patterns like `T[]` (optionally with spaces between identifier and []).
-     Return IDENT_ARRAY with the identifier name only to help the parser
-     distinguish array type declarations from indexing expressions. */
-  char *br = strchr(yytext, '[');
-  size_t idlen = br ? (size_t)(br - yytext) : yyleng;
-  char *id = (char*)malloc(idlen + 1);
-  if (id) {
-    memcpy(id, yytext, idlen);
-    id[idlen] = '\0';
-  }
-  yylval.str = id;
-  return IDENT_ARRAY;
-}
-
-/* Regular identifier rule (after IDENT_ARRAY) */
 [A-Za-z_][A-Za-z0-9_]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
 
 "=="            { yylval.str = dup_yytext(yytext); return EQEQ; }
@@ -110,7 +94,6 @@ static void print_escaped(const char *s) {
 "."     { return DOT; }
 ":"     { return COLON; }
 
-/\*([^*]|\*+[^*/])*\*+\/  { /* multi-line comment */ }
 "//"[^\n]*                 { /* single-line comment */ }
 
 [ \t\r\n]+     { /* skip whitespace */ }
