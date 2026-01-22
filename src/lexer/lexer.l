@@ -110,7 +110,7 @@ static void print_escaped(const char *s) {
 "."     { return DOT; }
 ":"     { return COLON; }
 
-"/*"([^*]|\*+[^*/])*\*+"/"  { /* multi-line comment */ }
+/\*([^*]|\*+[^*/])*\*+\/  { /* multi-line comment */ }
 "//"[^\n]*                 { /* single-line comment */ }
 
 [ \t\r\n]+     { /* skip whitespace */ }
