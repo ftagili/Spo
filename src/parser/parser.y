@@ -21,6 +21,7 @@ int yylex(void);
 %token EXTERN CLASS PUBLIC PRIVATE
 %token TEMPLATE
 %token <str> BUILTIN_TYPE
+%token <str> ELLIPSIS
 %token <str> PLUS MINUS STAR SLASH PERCENT
 %token <str> LT GT LE GE EQEQ NEQ
 %token LBRACE RBRACE LPAREN RPAREN SEMICOLON COMMA LBRACKET RBRACKET ASSIGN
@@ -111,6 +112,11 @@ argList
       { $$ = ast_create_node("args"); }
     | argDefList
       { $$ = ast_create_node("args"); ast_add_child($$, $1); }
+    | argDefList COMMA ELLIPSIS
+      { $$ = ast_create_node("args"); ast_add_child($$, $1);
+        ASTNode* va = ast_create_leaf_token("varargs", $3); free($3); ast_add_child($$, va); }
+    | ELLIPSIS
+      { $$ = ast_create_node("args"); ASTNode* va = ast_create_leaf_token("varargs", $1); free($1); ast_add_child($$, va); }
     ;
 
 argDefList
