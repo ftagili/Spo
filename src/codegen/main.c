@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 /* Parser generated in build directory */
 #include "../../build/parser.tab.h"
