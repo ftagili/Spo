@@ -387,6 +387,13 @@ expr
         ast_add_child($$, id);
         ast_add_child($$, $4);
       }
+    /* new Type[expr] - array allocation form */
+    | NEW IDENTIFIER LBRACKET argExprList RBRACKET
+      { $$ = ast_create_node("new");
+        ASTNode* id = ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id);
+        ast_add_child($$, $4);
+      }
     | NEW IDENTIFIER
       { $$ = ast_create_node("new");
         ASTNode* id=ast_create_leaf_token("id", $2); free($2);
