@@ -13,6 +13,17 @@
 extern FILE *yyin;
 extern int yyparse(void);
 
+/* Skip UTF-8 BOM if present at the start of the file. Leaves the file
+   position after the BOM (or rewound to start if no BOM). */
+static void skip_utf8_bom(FILE *f) {
+  if (!f) return;
+  unsigned char bom[3];
+  size_t n = fread(bom, 1, 3, f);
+  if (n != 3 || bom[0] != 0xEF || bom[1] != 0xBB || bom[2] != 0xBF) {
+    fseek(f, 0, SEEK_SET);
+  }
+}
+
 /* Extract base filename without extension */
 static char *get_base_filename(const char *path) {
   const char *base = strrchr(path, '/');
@@ -127,6 +138,9 @@ int main(int argc, char **argv) {
       parse_errors = 1;
       continue;
     }
+
+    /* tolerate optional UTF-8 BOM */
+    skip_utf8_bom(f);
 
     yyin = f;
     int parse_result = yyparse();
