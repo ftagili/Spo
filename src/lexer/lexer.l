@@ -35,6 +35,7 @@ static void print_escaped(const char *s) {
 %option noyywrap
 %option nounput
 %option noinput
+%option yylineno
 
 %%
 "if"            return IF;
@@ -91,6 +92,7 @@ static void print_escaped(const char *s) {
 ","     return COMMA;
 "["     return LBRACKET;
 "]"     return RBRACKET;
+"..."   { yylval.str = dup_yytext(yytext); return ELLIPSIS; }
 "."     return DOT;
 ":"     return COLON;
 
