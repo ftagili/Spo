@@ -9,6 +9,8 @@
 
 extern FILE *yyin;
 extern int yyparse(void);
+/* expose bison debug flag (available when %debug is used in grammar) */
+extern int yydebug;
 
 /* Skip UTF-8 BOM if present at the start of the file. Leaves the file
    position after the BOM (or rewound to start if no BOM). */
@@ -54,6 +56,10 @@ int main(int argc, char **argv) {
   /* Be tolerant of optional UTF-8 BOM at the start of input files */
   skip_utf8_bom(input_f);
   yyin = input_f;
+  /* Enable parser debug when requested via environment (helps debugging) */
+  if (getenv("PARSER_DEBUG") != NULL) {
+    yydebug = 1;
+  }
   int parse_result = yyparse();
   fclose(input_f);
 
