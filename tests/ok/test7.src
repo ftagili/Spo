@@ -1,9 +1,7 @@
-// Объявления стандартных функций
 int printf(string format, ...);
 int puts(string s);
 void* malloc(int size);
 
-// Шаблонный класс List<T>
 template <T> class List {
     T[] arr;
     int count;
@@ -43,7 +41,6 @@ template <T> class List {
     }
 }
 
-// Класс Vec2i
 class Vec2i {
     int x;
     int y;
@@ -54,14 +51,12 @@ class Vec2i {
     }
 }
 
-// Конструктор Vec2i
 Vec2i makeVec2i(int x, int y) {
     Vec2i v = new Vec2i();
     v.init(x, y);
     return v;
 }
 
-// Вспомогательные функции вывода
 void printInt(int x) {
     printf("%d", x);
 }
@@ -70,13 +65,11 @@ void writeByte(int c) {
     printf("%c", c);
 }
 
-// Перегруженная функция printValue для int
 void printValue(int n) {
     printInt(n);
     writeByte(10); // '\n'
 }
 
-// Перегруженная функция printValue для Vec2i
 void printValue(Vec2i v) {
     writeByte('x');
     writeByte('=');
@@ -88,7 +81,6 @@ void printValue(Vec2i v) {
     writeByte(10); // '\n'
 }
 
-// Перегруженная функция sum для List<int>
 int sum(List<int> a) {
     int n = 0;
     int s = 0;
@@ -99,7 +91,6 @@ int sum(List<int> a) {
     return s;
 }
 
-// Перегруженная функция sum для List<Vec2i>
 Vec2i sum(List<Vec2i> a) {
     int n = 0;
     Vec2i s = makeVec2i(0, 0);
@@ -111,7 +102,6 @@ Vec2i sum(List<Vec2i> a) {
     return s;
 }
 
-// Основная функция
 int main() {
     List<int> vn = new List<int>();
     vn.init();
@@ -133,7 +123,6 @@ int main() {
     }
     vv.printValues();
 
-    // Вывод сумм
     int sum_int = sum(vn);
     printInt(sum_int);
     writeByte(10);
