@@ -48,9 +48,22 @@ tmp_in="$(mktemp --suffix=.src)"
 # This is line-oriented and safe for the patterns used in tests.
 LC_ALL=C sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\[[[:space:]]*([^]]+)[[:space:]]*\][[:space:]]*;/\1[] \2;\n\2 = __alloc_array(\3);/g' "$in" > "$tmp_in"
 
-./build/codegen "$tmp_in" "$out"
+# Run codegen; if it fails, dump the temporary preprocessed input so we can
+# inspect what the parser actually received (useful for debugging encoding or
+# sed/locale issues on different architectures).
+if ! ./build/codegen "$tmp_in" "$out"; then
+    echo "\n=== codegen failed. Dumping preprocessed input ($tmp_in) ===" >&2
+    if command -v hexdump >/dev/null 2>&1; then
+        hexdump -C "$tmp_in" | sed -n '1,120p' >&2
+    else
+        sed -n '1,200p' "$tmp_in" >&2
+    fi
+    echo "=== end dump ===\n" >&2
+    # keep tmp file for inspection and return non-zero
+    exit 1
+fi
 
-# remove temp file
+# remove temp file on success
 rm -f "$tmp_in"
 
 # ассемблирование
