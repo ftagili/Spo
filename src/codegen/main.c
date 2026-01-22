@@ -10,6 +10,18 @@
 extern FILE *yyin;
 extern int yyparse(void);
 
+/* Skip UTF-8 BOM if present at the start of the file. Leaves the file
+   position after the BOM (or rewound to start if no BOM). */
+static void skip_utf8_bom(FILE *f) {
+  if (!f) return;
+  unsigned char bom[3];
+  size_t n = fread(bom, 1, 3, f);
+  if (n != 3 || bom[0] != 0xEF || bom[1] != 0xBB || bom[2] != 0xBF) {
+    /* No BOM: rewind to start */
+    fseek(f, 0, SEEK_SET);
+  }
+}
+
 int main(int argc, char **argv) {
   const char *input_file = NULL;
   const char *output_file = NULL;
@@ -39,6 +51,8 @@ int main(int argc, char **argv) {
   }
 
   /* Parse input file */
+  /* Be tolerant of optional UTF-8 BOM at the start of input files */
+  skip_utf8_bom(input_f);
   yyin = input_f;
   int parse_result = yyparse();
   fclose(input_f);
