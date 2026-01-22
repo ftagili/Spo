@@ -580,7 +580,15 @@ fieldList
 
 int parse_error = 0;
 
+/* Expose lexer state for better error messages */
+extern int yylineno;
+extern char *yytext;
+
 void yyerror(const char *s) {
-    fprintf(stderr, "Error: %s\n", s);
-    parse_error = 1;
+  if (yytext) {
+    fprintf(stderr, "Error: %s at line %d near '%s'\n", s, yylineno, yytext);
+  } else {
+    fprintf(stderr, "Error: %s at line %d\n", s, yylineno);
+  }
+  parse_error = 1;
 }
