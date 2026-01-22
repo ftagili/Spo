@@ -271,7 +271,7 @@ expr
         ast_add_child($$, id); ast_add_child($$, $3); }
 
     /* assign to indexed lvalue: a[expr] = expr */
-    | IDENTIFIER LBRACKET argExprList RBRACKET ASSIGN expr
+    | IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr
       { $$ = ast_create_node("assign_index");
         ASTNode* id = ast_create_leaf_token("id", $1); free($1);
         ast_add_child($$, id); ast_add_child($$, $3); ast_add_child($$, $6); }
@@ -406,7 +406,7 @@ expr
         ast_add_child($$, $4);
       }
     /* new Type[expr] - array allocation form */
-    | NEW IDENTIFIER LBRACKET argExprList RBRACKET
+    | NEW IDENTIFIER LBRACKET expr RBRACKET
       { $$ = ast_create_node("new");
         ASTNode* id = ast_create_leaf_token("id", $2); free($2);
         ast_add_child($$, id);
@@ -438,7 +438,7 @@ expr
       }
 
     /* индекс после точки (если вдруг понадобится): obj.arr[idx] */
-    | expr DOT IDENTIFIER LBRACKET argExprList RBRACKET
+    | expr DOT IDENTIFIER LBRACKET expr RBRACKET
       { $$ = ast_create_node("memberIndex");
         ASTNode* id=ast_create_leaf_token("id", $3); free($3);
         ast_add_child($$, $1);
@@ -457,7 +457,7 @@ expr
       { $$ = ast_create_node("call");
         ASTNode* id=ast_create_leaf_token("id",$1); free($1);
         ast_add_child($$, id); ast_add_child($$, $3); }
-    | IDENTIFIER LBRACKET argExprList RBRACKET
+    | IDENTIFIER LBRACKET expr RBRACKET
       { $$ = ast_create_node("index");
         ASTNode* id=ast_create_leaf_token("id",$1); free($1);
         ast_add_child($$, id); ast_add_child($$, $3); }
