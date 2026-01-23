@@ -11,20 +11,6 @@ template <T> class List {
         arr = new T[3];
         count = 0;
         capacity = 3;
-
-int printf(string format, ...);
-int puts(string s);
-void* malloc(int size);
-
-template <T> class List {
-    T[] arr;
-    int count;
-    int capacity;
-
-    void init() {
-        arr = new T[3];
-        count = 0;
-        capacity = 3;
     }
 
     void expand() {
