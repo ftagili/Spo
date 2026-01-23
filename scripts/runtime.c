@@ -196,7 +196,6 @@ void List__printValues(List *self) {
     writeByte('\n');
 }
 
-/* Backwards-compatible wrapper name: codegen may call printValue__Vec2i */
-void printValue__Vec2i(void *p) {
-    printValue_Vec2i((Vec2i*)p);
-}
+/* Note: do NOT provide printValue__Vec2i here — the generated program may
+   define its own printValue__Vec2i (from the user's source). Defining it in
+   the runtime would cause multiple-definition linker errors. */
