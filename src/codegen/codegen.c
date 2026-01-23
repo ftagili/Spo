@@ -242,6 +242,10 @@ typedef struct {
   const char **field_names;       /* field name */
   int *field_offsets;            /* offset in bytes */
   int field_n;
+  /* set of class names for which we need vtable symbols (collected during gen_new)
+    to ensure we emit a placeholder vtable even if class definition is absent. */
+  const char **required_vtables;
+  int req_vtables_n, req_vtables_cap;
 
 } CG;
 
@@ -261,6 +265,9 @@ static void cg_init(CG *cg, FILE *out) {
   cg->field_names = NULL;
   cg->field_offsets = NULL;
   cg->field_n = 0;
+  cg->required_vtables = NULL;
+  cg->req_vtables_n = 0;
+  cg->req_vtables_cap = 0;
 }
 
 static void cg_free(CG *cg) {
@@ -277,7 +284,26 @@ static void cg_free(CG *cg) {
   free((void*)cg->field_class_names);
   free((void*)cg->field_names);
   free(cg->field_offsets);
+  if (cg->required_vtables) {
+    for (int i = 0; i < cg->req_vtables_n; i++) free((void*)cg->required_vtables[i]);
+    free((void*)cg->required_vtables);
+  }
   memset(cg, 0, sizeof(*cg));
+}
+
+static void cg_add_required_vtable(CG *cg, const char *name) {
+  if (!cg || !name) return;
+  for (int i = 0; i < cg->req_vtables_n; i++) {
+    if (cg->required_vtables[i] && !strcmp(cg->required_vtables[i], name)) return;
+  }
+  if (cg->req_vtables_n == cg->req_vtables_cap) {
+    int nc = cg->req_vtables_cap ? (cg->req_vtables_cap * 2) : 8;
+    const char **nv = (const char **)realloc((void*)cg->required_vtables, (size_t)nc * sizeof(char*));
+    if (!nv) return;
+    cg->required_vtables = nv;
+    cg->req_vtables_cap = nc;
+  }
+  cg->required_vtables[cg->req_vtables_n++] = dup_cstr(name);
 }
 
 static int cg_has_defined_function(CG *cg, const char *name) {
@@ -1127,6 +1153,10 @@ static void gen_new(CG *cg, const ASTNode *expr) {
     emit(cg, "  # initialize vtable pointer to %s", buf);
     emit(cg, "  larl %%r2,%s", buf);
     emit(cg, "  stg  %%r2,0(%%r1)");
+    /* record we need a vtable symbol for this class in case the class
+       definition does not appear in the AST (so we can emit a placeholder
+       vtable later and avoid linker errors). */
+    cg_add_required_vtable(cg, class_name);
   }
 
   // Evaluate constructor arguments if any
@@ -1900,6 +1930,10 @@ static void emit_type_info(CG *cg, const ASTNode *root) {
     }
     
     free(field_names);
+   /* Record that we emitted a vtable for this class so we don't emit
+     a duplicate placeholder later. We add it to cg->required_vtables
+     to mark it as provided. */
+   cg_add_required_vtable(cg, class_name);
   
     /* Emit a simple vtable symbol for this class. We keep a placeholder
        table with a single quad (can be extended later). This ensures that
@@ -1910,6 +1944,45 @@ static void emit_type_info(CG *cg, const ASTNode *root) {
     emit(cg, "  .align 8");
     emit(cg, "%s_vtable:", class_name);
     emit(cg, "  .quad 0");
+  }
+  /* Emit placeholder vtables for any classes that were requested during
+     codegen (via gen_new) but which did not exist as class definitions in
+     the AST. This ensures symbols like List_vtable are defined. */
+  if (cg->required_vtables && cg->req_vtables_n > 0) {
+    // Build a set of class_names we already emitted (from items loop)
+    // We used cg_add_required_vtable above for emitted classes too, so
+    // to avoid duplicating, just iterate required_vtables and emit
+    // those that were not already emitted by this function. To track
+    // emitted ones we can use a temporary array of emitted names built
+    // earlier; but since we already ensured required_vtables contains
+    // all names, we'll emit placeholders only for those entries that do
+    // not currently have a symbol in the file — simple approach: emit
+    // vtable for every required_vtables entry but guard by local
+    // duplication prevention by tracking what we output here.
+    const char **emitted_local = NULL;
+    int emitted_local_n = 0, emitted_local_cap = 0;
+    for (int i = 0; i < cg->req_vtables_n; i++) {
+      const char *vn = cg->required_vtables[i];
+      // skip duplicates in this emission pass
+      int dup = 0;
+      for (int j = 0; j < emitted_local_n; j++) if (!strcmp(emitted_local[j], vn)) { dup = 1; break; }
+      if (dup) continue;
+      // Emit placeholder vtable
+      emit(cg, "");
+      emit(cg, "  .section .data.vtables");
+      emit(cg, "  .align 8");
+      emit(cg, "%s_vtable:", vn);
+      emit(cg, "  .quad 0");
+      // record in emitted_local
+      if (emitted_local_n == emitted_local_cap) {
+        int nc = emitted_local_cap ? emitted_local_cap * 2 : 8;
+        const char **nv = (const char **)realloc((void*)emitted_local, (size_t)nc * sizeof(char*));
+        if (!nv) break;
+        emitted_local = nv; emitted_local_cap = nc;
+      }
+      emitted_local[emitted_local_n++] = vn;
+    }
+    free((void*)emitted_local);
   }
 }
 
