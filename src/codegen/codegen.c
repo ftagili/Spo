@@ -1138,13 +1138,12 @@ static void gen_new(CG *cg, const ASTNode *expr) {
 
   // TODO: Get class size from TypeEnv
   // For now, allocate 16 bytes (vptr + one field)
-  emit(cg, "  # TODO: allocate object of class '%s'", class_name);
-  emit(cg, "  # Allocate memory (placeholder: 16 bytes)");
-  emit(cg, "  lghi %%r2,16"); // size
-  emit(cg, "  # TODO: call malloc or use stack allocation");
-  emit(cg, "  # For now, use stack (placeholder)");
-  emit(cg, "  aghi %%r12,-16"); // Allocate on stack
-  emit(cg, "  lgr  %%r1,%%r12"); // r1 = pointer to allocated memory
+  emit(cg, "  # allocate object of class '%s' (heap)", class_name);
+  emit(cg, "  # Allocate memory using libc malloc(size)");
+  emit(cg, "  lghi %%r2,16"); /* size */
+  emit(cg, "  # call malloc(size) -> returns pointer in %%r2");
+  emit(cg, "  brasl %%r14,malloc");
+  emit(cg, "  lgr  %%r1,%%r2"); /* r1 = pointer to allocated memory */
   // Initialize vtable pointer: point to a per-class vtable symbol so
   // method dispatch that reads the vptr won't dereference a NULL address.
   {
@@ -2239,12 +2238,28 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
           break;
         }
       }
+      /* Determine base name (unmangled) for standard-library checks.
+         Mangled names look like "name__Type..."; we should treat the
+         prefix before "__" as the base when deciding if this is a
+         standard library function, and emit an extern for the base
+         symbol instead of generating a stub for the mangled name. */
+      const char *base = nm;
+      char basebuf[256];
+      char *sep = strstr(nm, "__");
+      if (sep) {
+        size_t len = (size_t)(sep - nm);
+        if (len >= sizeof(basebuf)) len = sizeof(basebuf) - 1;
+        memcpy(basebuf, nm, len);
+        basebuf[len] = '\0';
+        base = basebuf;
+      }
+
       // Generate stub if not defined and not a standard library function
-      if (!found && !is_standard_library_func(nm)) {
+      if (!found && !is_standard_library_func(base)) {
         gen_function_stub(&cg, fn);
-      } else if (!found && is_standard_library_func(nm)) {
-        // Keep as extern for standard library functions
-        emit(&cg, "  .extern %s", nm);
+      } else if (!found && is_standard_library_func(base)) {
+        // Keep as extern for standard library functions (use base name)
+        emit(&cg, "  .extern %s", base);
       }
       free((void*)nm);
     }
