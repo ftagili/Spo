@@ -148,6 +148,12 @@ typeRef
         ASTNode* t = ast_create_leaf_token("typeRef", $1); free($1);
         ast_add_child($$, t);
       }
+    /* identifier followed by [] (space-separated tokens) e.g. 'T [ ]' or 'T [ ]' */
+    | IDENTIFIER LBRACKET RBRACKET
+      { $$ = ast_create_node("array");
+        ASTNode* t = ast_create_leaf_token("typeRef", $1); free($1);
+        ast_add_child($$, t);
+      }
     | IDENTIFIER LT typeRef GT
       { $$ = ast_create_node("genType");
         ASTNode* id = ast_create_leaf_token("id", $1); free($1);
