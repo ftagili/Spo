@@ -43,11 +43,9 @@ int main() {
                 break;
             }
             if (op == 10) {
-                /* '\n' */
             } else if (op == ' ') {
 
             } else if (op == 9) {
-                /* '\t' */
             } else {
                 break;
             }
