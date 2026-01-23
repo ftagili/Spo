@@ -1119,11 +1119,15 @@ static void gen_new(CG *cg, const ASTNode *expr) {
   emit(cg, "  # For now, use stack (placeholder)");
   emit(cg, "  aghi %%r12,-16"); // Allocate on stack
   emit(cg, "  lgr  %%r1,%%r12"); // r1 = pointer to allocated memory
-
-  // TODO: Initialize vtable pointer
-  emit(cg, "  # TODO: initialize vtable pointer");
-  emit(cg, "  lghi %%r2,0"); // Placeholder: vtable pointer
-  emit(cg, "  stg  %%r2,0(%%r1)");
+  // Initialize vtable pointer: point to a per-class vtable symbol so
+  // method dispatch that reads the vptr won't dereference a NULL address.
+  {
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s_vtable", class_name);
+    emit(cg, "  # initialize vtable pointer to %s", buf);
+    emit(cg, "  larl %%r2,%s", buf);
+    emit(cg, "  stg  %%r2,0(%%r1)");
+  }
 
   // Evaluate constructor arguments if any
   const ASTNode *list = NULL;
@@ -1896,6 +1900,16 @@ static void emit_type_info(CG *cg, const ASTNode *root) {
     }
     
     free(field_names);
+  
+    /* Emit a simple vtable symbol for this class. We keep a placeholder
+       table with a single quad (can be extended later). This ensures that
+       object vptr initialization (to <Class>_vtable) points to valid
+       memory and avoids null dereferences when generated code loads vptr. */
+    emit(cg, "");
+    emit(cg, "  .section .data.vtables");
+    emit(cg, "  .align 8");
+    emit(cg, "%s_vtable:", class_name);
+    emit(cg, "  .quad 0");
   }
 }
 
