@@ -1930,20 +1930,12 @@ static void emit_type_info(CG *cg, const ASTNode *root) {
     }
     
     free(field_names);
-   /* Record that we emitted a vtable for this class so we don't emit
-     a duplicate placeholder later. We add it to cg->required_vtables
-     to mark it as provided. */
-   cg_add_required_vtable(cg, class_name);
-  
-    /* Emit a simple vtable symbol for this class. We keep a placeholder
-       table with a single quad (can be extended later). This ensures that
-       object vptr initialization (to <Class>_vtable) points to valid
-       memory and avoids null dereferences when generated code loads vptr. */
-    emit(cg, "");
-    emit(cg, "  .section .data.vtables");
-    emit(cg, "  .align 8");
-    emit(cg, "%s_vtable:", class_name);
-    emit(cg, "  .quad 0");
+   /* Note: vtable placeholders are emitted later in a single pass
+     from cg->required_vtables. Do not emit per-class vtable here to
+     avoid duplicate symbol definitions. If this class needs a vtable
+     (e.g. an object of this class is instantiated), gen_new will
+     register it via cg_add_required_vtable and it will be emitted
+     once at the end of codegen. */
   }
   /* Emit placeholder vtables for any classes that were requested during
      codegen (via gen_new) but which did not exist as class definitions in
