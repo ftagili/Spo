@@ -51,9 +51,10 @@ class Vec2i {
     }
 }
 
-Vec2i makeVec2i(int x, int y) {
-    Vec2i v = new Vec2i();
-    v.init(x, y);
+/* Now returns a pointer to a heap-allocated Vec2i */
+Vec2i* makeVec2i(int x, int y) {
+    Vec2i* v = new Vec2i();
+    v->init(x, y);
     return v;
 }
 
@@ -70,33 +71,38 @@ void printValue(int n) {
     writeByte(10); // '\n'
 }
 
-void printValue(Vec2i v) {
+/* Overload for pointer-based Vec2i */
+void printValue(Vec2i* v) {
     writeByte('x');
     writeByte('=');
-    printInt(v.x);
+    printInt(v->x);
     writeByte(',');
     writeByte('y');
     writeByte('=');
-    printInt(v.y);
+    printInt(v->y);
     writeByte(10); // '\n'
 }
 
+/* Sum for List<int> stays unchanged */
 int sum(List<int> a) {
     int n = 0;
     int s = 0;
     while (n < a.count) {
-        s = s + a[n]; // индексация через []
+        s = s + a[n]; // indexing
         n = n + 1;
     }
     return s;
 }
 
-Vec2i sum(List<Vec2i> a) {
+/* Sum for List<Vec2i*>: returns a new Vec2i* (heap) as the sum */
+Vec2i* sum(List<Vec2i*> a) {
     int n = 0;
-    Vec2i s = makeVec2i(0, 0);
+    Vec2i* s = makeVec2i(0, 0);
     while (n < a.count) {
-        Vec2i v = a[n];
-        s = makeVec2i(s.x + v.x, s.y + v.y);
+        Vec2i* v = a[n];
+        Vec2i* tmp = makeVec2i(s->x + v->x, s->y + v->y);
+        /* Optionally free s here if runtime supports it; omit for simplicity */
+        s = tmp;
         n = n + 1;
     }
     return s;
@@ -113,7 +119,7 @@ int main() {
     }
     vn.printValues();
 
-    List<Vec2i> vv = new List<Vec2i>();
+    List<Vec2i*> vv = new List<Vec2i*>();
     vv.init();
 
     n = 0;
@@ -127,10 +133,10 @@ int main() {
     printInt(sum_int);
     writeByte(10);
 
-    Vec2i sum_vec = sum(vv);
-    printInt(sum_vec.x);
+    Vec2i* sum_vec = sum(vv);
+    printInt(sum_vec->x);
     writeByte(',');
-    printInt(sum_vec.y);
+    printInt(sum_vec->y);
     writeByte(10);
 
     return 0;
