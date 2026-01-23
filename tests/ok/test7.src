@@ -11,6 +11,20 @@ template <T> class List {
         arr = new T[3];
         count = 0;
         capacity = 3;
+
+int printf(string format, ...);
+int puts(string s);
+void* malloc(int size);
+
+template <T> class List {
+    T[] arr;
+    int count;
+    int capacity;
+
+    void init() {
+        arr = new T[3];
+        count = 0;
+        capacity = 3;
     }
 
     void expand() {
@@ -51,8 +65,7 @@ class Vec2i {
     }
 }
 
-
-Vec2i __vec_pool[2048];
+Vec2i* __vec_pool;
 int __vec_next = 0;
 
 int makeVec2i(int x, int y) {
@@ -73,7 +86,7 @@ void writeByte(int c) {
 
 void printValue(int n) {
     printInt(n);
-    writeByte(10); // '\n'
+    writeByte(10);
 }
 
 void printValueVec(int h) {
@@ -85,7 +98,7 @@ void printValueVec(int h) {
     writeByte('y');
     writeByte('=');
     printInt(v->y);
-    writeByte(10); // '\n'
+    writeByte(10);
 }
 
 int sum(List<int> a) {
@@ -115,6 +128,8 @@ int main() {
 
     List<int> vv = new List<int>();
     vv.init();
+
+    __vec_pool = malloc(2048 * 24);
 
     n = 0;
     while (n < 20) {
