@@ -1141,8 +1141,8 @@ static void gen_new(CG *cg, const ASTNode *expr) {
   emit(cg, "  # allocate object of class '%s' (heap)", class_name);
   emit(cg, "  # Allocate memory using libc malloc(size)");
   emit(cg, "  lghi %%r2,16"); /* size */
-  emit(cg, "  # call malloc(size) -> returns pointer in %%r2");
-  emit(cg, "  brasl %%r14,malloc");
+  emit(cg, "  # call __runtime_malloc(size) -> returns pointer in %%r2");
+  emit(cg, "  brasl %%r14,__runtime_malloc");
   emit(cg, "  lgr  %%r1,%%r2"); /* r1 = pointer to allocated memory */
   // Initialize vtable pointer: point to a per-class vtable symbol so
   // method dispatch that reads the vptr won't dereference a NULL address.
