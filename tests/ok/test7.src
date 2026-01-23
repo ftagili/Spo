@@ -52,10 +52,15 @@ class Vec2i {
 }
 
 
-Vec2i* makeVec2i(int x, int y) {
-    Vec2i* v = new Vec2i();
-    v->init(x, y);
-    return v;
+Vec2i __vec_pool[2048];
+int __vec_next = 0;
+
+int makeVec2i(int x, int y) {
+    Vec2i v;
+    v.init(x, y);
+    int h = __vec_next++;
+    __vec_pool[h] = v;
+    return h;
 }
 
 void printInt(int x) {
@@ -71,7 +76,8 @@ void printValue(int n) {
     writeByte(10); // '\n'
 }
 
-void printValue(Vec2i* v) {
+void printValueVec(int h) {
+    Vec2i *v = &__vec_pool[h];
     writeByte('x');
     writeByte('=');
     printInt(v->x);
@@ -84,24 +90,16 @@ void printValue(Vec2i* v) {
 
 int sum(List<int> a) {
     int n = 0;
-    int s = 0;
+    int s_handle = makeVec2i(0, 0);
     while (n < a.count) {
-        s = s + a[n];
+        int v_handle = a[n];
+        Vec2i *s = &__vec_pool[s_handle];
+        Vec2i *v = &__vec_pool[v_handle];
+        int tmp = makeVec2i(s->x + v->x, s->y + v->y);
+        s_handle = tmp;
         n = n + 1;
     }
-    return s;
-}
-
-Vec2i* sum(List<void*> a) {
-    int n = 0;
-    Vec2i* s = makeVec2i(0, 0);
-    while (n < a.count) {
-        Vec2i* v = a[n];
-        Vec2i* tmp = makeVec2i(s->x + v->x, s->y + v->y);
-    s = tmp;
-        n = n + 1;
-    }
-    return s;
+    return s_handle;
 }
 
 int main() {
@@ -115,7 +113,7 @@ int main() {
     }
     vn.printValues();
 
-    List<void*> vv = new List<void*>();
+    List<int> vv = new List<int>();
     vv.init();
 
     n = 0;
@@ -123,16 +121,21 @@ int main() {
         vv.add(makeVec2i(n, 20 - n));
         n = n + 1;
     }
-    vv.printValues();
+
+    int _i = 0;
+    while (_i < vv.count) {
+        printValueVec(vv.arr[_i]);
+        _i = _i + 1;
+    }
 
     int sum_int = sum(vn);
     printInt(sum_int);
     writeByte(10);
 
-    Vec2i* sum_vec = sum(vv);
-    printInt(sum_vec->x);
+    int sum_vec = sum(vv);
+    printInt(__vec_pool[sum_vec].x);
     writeByte(',');
-    printInt(sum_vec->y);
+    printInt(__vec_pool[sum_vec].y);
     writeByte(10);
 
     return 0;
