@@ -1040,7 +1040,50 @@ static void gen_method_call(CG *cg, const ASTNode *expr) {
       return;
     }
   }
+  // If static dispatch is not possible, try to find a top-level mangled
+  // implementation matching "<ClassOrBase>__<method>" where the arity
+  // (including the implicit 'this' argument) matches total_args. This
+  // avoids dereferencing a null vtable pointer when objects are created
+  // with uninitialized vptr (placeholders used during codegen).
+  {
+    int total_args = 1 + nargs; /* object + method args */
+    const char *candidate = NULL;
+    if (cg && method_name) {
+      size_t mlen = strlen(method_name);
+      /* prefer candidate with matching arity */
+      if (cg->defined_names && cg->defined_arity) {
+        for (int i = 0; i < cg->defined_n; i++) {
+          const char *dn = cg->defined_names[i];
+          if (!dn) continue;
+          /* look for suffix __<method> */
+          const char *p = strstr(dn, "__");
+          if (!p) continue;
+          const char *suf = p + 2;
+          if (!strcmp(suf, method_name) || (strncmp(suf, method_name, mlen) == 0 && suf[mlen] == '\0')) {
+            if (cg->defined_arity[i] == total_args) { candidate = dn; break; }
+          }
+        }
+      }
+      /* fallback: first suffix match */
+      if (!candidate && cg && cg->defined_names) {
+        for (int i = 0; i < cg->defined_n; i++) {
+          const char *dn = cg->defined_names[i];
+          if (!dn) continue;
+          const char *p = strstr(dn, "__");
+          if (!p) continue;
+          const char *suf = p + 2;
+          if (!strcmp(suf, method_name) || (strncmp(suf, method_name, mlen) == 0 && suf[mlen] == '\0')) { candidate = dn; break; }
+        }
+      }
+    }
+    if (candidate) {
+      emit(cg, "  # static-like dispatch to %s (method lookup by name+arity)", candidate);
+      emit(cg, "  brasl %%r14,%s", candidate);
+      return;
+    }
+  }
 
+  /* Fallback: attempt vtable dispatch (may crash if vptr is NULL). */
   emit(cg, "  # Load vtable pointer from object (offset 0)");
   emit(cg, "  lg   %%r1,0(%%r2)"); // r1 = vtable pointer
   emit(cg, "  # TODO: Load method pointer from vtable[slot]");
@@ -2053,6 +2096,32 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
 
         // Append to top-level items so the normal function emitter will generate it
         ast_add_child((ASTNode*)items, new_fn);
+        /* Register the newly created mangled function name in cg->defined_names
+           so subsequent call-site resolution can find it. */
+        {
+          const char *nm_new = get_func_name(new_fn); /* allocated */
+          int ar_new = 0;
+          /* compute arity from new_sig (args list) */
+          if (new_sig && new_sig->numChildren >= 3) {
+            const ASTNode *argsn = new_sig->children[2];
+            if (argsn && argsn->label && strcmp(argsn->label, "args") == 0 && argsn->numChildren > 0) {
+              const ASTNode *argl = argsn->children[0];
+              if (argl && argl->label && strcmp(argl->label, "arglist") == 0) ar_new = argl->numChildren;
+            }
+          }
+          int new_count = cg.defined_n + 1;
+          const char **nn = (const char **)realloc((void*)cg.defined_names, (size_t)new_count * sizeof(char*));
+          int *na = (int *)realloc(cg.defined_arity, (size_t)new_count * sizeof(int));
+          if (nn) cg.defined_names = nn;
+          if (na) cg.defined_arity = na;
+          if (cg.defined_names && cg.defined_arity) {
+            cg.defined_names[cg.defined_n] = nm_new;
+            cg.defined_arity[cg.defined_n] = ar_new;
+            cg.defined_n = new_count;
+          } else {
+            free((void*)nm_new);
+          }
+        }
       }
     }
   }
