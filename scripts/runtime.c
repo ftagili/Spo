@@ -2,6 +2,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* Placeholder vtable symbols for classes that may be referenced by
+    generated code but not defined as classes in the source AST. These
+    ensure the linker finds symbols like List_vtable or Vec2i_vtable and
+    that object vptrs initialized to these symbols are non-NULL. */
+void *List_vtable = NULL;
+void *Vec2i_vtable = NULL;
+
 /* =========================
    Базовый ввод / вывод
    ========================= */
