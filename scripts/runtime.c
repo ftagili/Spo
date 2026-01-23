@@ -2,6 +2,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* Runtime wrapper around malloc used by generated code. We implement a
+   thin wrapper so we can add debug logging and ensure all allocations go
+   through our runtime layer. This avoids overriding libc's malloc symbol
+   globally and gives visibility into allocation failures / sizes. */
+void *__runtime_malloc(size_t s) {
+    void *p = malloc(s);
+    fprintf(stderr, "__runtime_malloc(%zu) -> %p\n", s, p);
+    return p;
+}
+
 /* Placeholder vtable symbols for classes that may be referenced by
     generated code but not defined as classes in the source AST. These
     ensure the linker finds symbols like List_vtable or Vec2i_vtable and
