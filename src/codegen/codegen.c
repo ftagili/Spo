@@ -235,6 +235,8 @@ typedef struct {
   /* top-level defined function names collected before generation */
   const char **defined_names;
   int defined_n;
+  /* parallel array holding parameter counts (arity) for each defined name */
+  int *defined_arity;
   /* simple field offset map: parallel arrays */
   const char **field_class_names; /* class name per field entry */
   const char **field_names;       /* field name */
@@ -254,6 +256,7 @@ static void cg_init(CG *cg, FILE *out) {
   locals_init(&cg->locals);
   cg->defined_names = NULL;
   cg->defined_n = 0;
+  cg->defined_arity = NULL;
   cg->field_class_names = NULL;
   cg->field_names = NULL;
   cg->field_offsets = NULL;
@@ -270,6 +273,7 @@ static void cg_free(CG *cg) {
     for (int i = 0; i < cg->defined_n; i++) free((void*)cg->defined_names[i]);
     free((void*)cg->defined_names);
   }
+  if (cg->defined_arity) free(cg->defined_arity);
   free((void*)cg->field_class_names);
   free((void*)cg->field_names);
   free(cg->field_offsets);
@@ -595,12 +599,26 @@ static void gen_call(CG *cg, const ASTNode *call) {
     const char *mangled_found = NULL;
     if (cg && fname) {
       size_t base_len = strlen(fname);
-      for (int i = 0; i < cg->defined_n; i++) {
-        const char *dn = cg->defined_names[i];
-        if (!dn) continue;
-        if (strncmp(dn, fname, base_len) == 0 && dn[base_len] == '_' && dn[base_len+1] == '_') {
-          mangled_found = dn;
-          break;
+      /* Prefer a candidate with the same number of arguments (arity) when possible. */
+      if (cg->defined_arity) {
+        for (int i = 0; i < cg->defined_n; i++) {
+          const char *dn = cg->defined_names[i];
+          if (!dn) continue;
+          if (strncmp(dn, fname, base_len) == 0 && dn[base_len] == '_' && dn[base_len+1] == '_' && cg->defined_arity[i] == nargs) {
+            mangled_found = dn;
+            break;
+          }
+        }
+      }
+      /* Fallback: first prefix match if exact-arity candidate not found. */
+      if (!mangled_found) {
+        for (int i = 0; i < cg->defined_n; i++) {
+          const char *dn = cg->defined_names[i];
+          if (!dn) continue;
+          if (strncmp(dn, fname, base_len) == 0 && dn[base_len] == '_' && dn[base_len+1] == '_') {
+            mangled_found = dn;
+            break;
+          }
         }
       }
     }
@@ -1865,6 +1883,7 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
   // First pass: collect defined function names
   typedef struct {
     const char **names;
+    int *arity;    /* parallel array with parameter counts */
     int n, cap;
   } FuncSet;
   
@@ -1874,20 +1893,34 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
   for (int i = 0; i < items->numChildren; i++) {
     const ASTNode *fn = items->children[i];
     if (!fn || !fn->label) continue;
-    
+
     if (!strcmp(fn->label, "funcDef")) {
       const char *nm = get_func_name(fn);
-      // Add to set
+      /* compute arity (number of args) from signature if available */
+      int ar = 0;
+      if (fn->numChildren > 0) {
+        const ASTNode *sig = fn->children[0];
+        if (sig && sig->label && strcmp(sig->label, "signature") == 0 && sig->numChildren >= 3) {
+          const ASTNode *args = sig->children[2];
+          if (args && args->label && strcmp(args->label, "args") == 0 && args->numChildren > 0) {
+            const ASTNode *arglist = args->children[0];
+            if (arglist && arglist->label && strcmp(arglist->label, "arglist") == 0) ar = arglist->numChildren;
+          }
+        }
+      }
+      // Add to set (expand names and arity arrays together)
       if (defined.n == defined.cap) {
         int nc = defined.cap ? (defined.cap * 2) : 16;
         const char **nv = (const char **)realloc(defined.names, (size_t)nc * sizeof(const char*));
-        if (nv) {
-          defined.names = nv;
-          defined.cap = nc;
-        }
+        int *na = (int *)realloc(defined.arity, (size_t)nc * sizeof(int));
+        if (nv) defined.names = nv;
+        if (na) defined.arity = na;
+        if (defined.names && defined.arity) defined.cap = nc;
       }
-      if (defined.names && defined.n < defined.cap) {
-        defined.names[defined.n++] = nm;
+      if (defined.names && defined.arity && defined.n < defined.cap) {
+        defined.names[defined.n] = nm;
+        defined.arity[defined.n] = ar;
+        defined.n++;
       }
     }
   }
@@ -1899,8 +1932,10 @@ int codegen_s390x_from_ast(FILE *out, const ASTNode *root) {
     // Transfer ownership of the names array to cg so other routines
     // can consult which top-level functions are defined.
     cg.defined_names = defined.names;
+    cg.defined_arity = defined.arity;
     cg.defined_n = defined.n;
     defined.names = NULL;
+    defined.arity = NULL;
     defined.n = 0;
     defined.cap = 0;
   }
