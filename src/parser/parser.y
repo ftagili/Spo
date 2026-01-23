@@ -411,12 +411,29 @@ expr
         ast_add_child($$, id);
         ast_add_child($$, $4);
       }
+    /* new ClassName<Type>(...) */
+    | NEW IDENTIFIER LT typeRef GT LPAREN argExprList RPAREN
+      { $$ = ast_create_node("new");
+        ASTNode* id=ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id);
+        /* attach generic type parameter */
+        ast_add_child($$, $4);
+        ast_add_child($$, $7);
+      }
     /* new Type[expr] - array allocation form */
     | NEW IDENTIFIER LBRACKET expr RBRACKET
       { $$ = ast_create_node("new");
         ASTNode* id = ast_create_leaf_token("id", $2); free($2);
         ast_add_child($$, id);
         ast_add_child($$, $4);
+      }
+    /* new ClassName<Type>[expr] - generic array allocation */
+    | NEW IDENTIFIER LT typeRef GT LBRACKET expr RBRACKET
+      { $$ = ast_create_node("new");
+        ASTNode* id = ast_create_leaf_token("id", $2); free($2);
+        ast_add_child($$, id);
+        ast_add_child($$, $4);
+        ast_add_child($$, $7);
       }
     | NEW IDENTIFIER
       { $$ = ast_create_node("new");
