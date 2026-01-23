@@ -58,6 +58,18 @@ static void print_escaped(const char *s) {
 \"([^\\\n]|\\.)*\"  { yylval.str = dup_yytext(yytext); return STRING_LITERAL; }
 \'([^\\\n]|\\.)\'                  { yylval.str = dup_yytext(yytext); return CHAR_LITERAL; }
 
+[A-Za-z_][A-Za-z0-9_]*\[\] {
+  /* Match identifier immediately followed by [] (no spaces), e.g. T[] */
+  size_t idlen = yyleng - 2; /* drop the [] */
+  char *id = (char*)malloc(idlen + 1);
+  if (id) {
+    memcpy(id, yytext, idlen);
+    id[idlen] = '\0';
+  }
+  yylval.str = id;
+  return IDENT_ARRAY;
+}
+
 [A-Za-z_][A-Za-z0-9_]*  { yylval.str = dup_yytext(yytext); return IDENTIFIER; }
 
 "=="            { yylval.str = dup_yytext(yytext); return EQEQ; }
