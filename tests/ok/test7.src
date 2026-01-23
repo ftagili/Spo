@@ -91,7 +91,7 @@ int sum(List<int> a) {
     return s;
 }
 
-Vec2i* sum(List<Vec2i*> a) {
+Vec2i* sum(List<void*> a) {
     int n = 0;
     Vec2i* s = makeVec2i(0, 0);
     while (n < a.count) {
@@ -114,7 +114,7 @@ int main() {
     }
     vn.printValues();
 
-    List<Vec2i*> vv = new List<Vec2i*>();
+    List<void*> vv = new List<void*>();
     vv.init();
 
     n = 0;
