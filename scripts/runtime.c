@@ -109,6 +109,21 @@ void printValue_int__writeByte(int c) {
     writeByte(c);
 }
 
+/*
+ * Backwards-compatible generic wrappers.
+ * Some generated code may refer to non-suffixed names like
+ * `printValue__printInt` / `printValue__writeByte`. Provide
+ * thin wrappers that forward to the concrete implementations
+ * already present above.
+ */
+void printValue__printInt(int64_t n) {
+    printValue_int__printInt(n);
+}
+
+void printValue__writeByte(int c) {
+    printValue_int__writeByte(c);
+}
+
 /* Vec2i */
 
 void printValue_Vec2i__printInt(int64_t n) {
