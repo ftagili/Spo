@@ -37,7 +37,6 @@ int main() {
     while (1) {
         puts("Enter operation:\n");
 
-        /* пропускаем пробелы/таб/переводы строк */
         while (1) {
             op = getchar();
             if (op < 0) {
@@ -58,7 +57,6 @@ int main() {
             break;
         }
 
-        /* дочищаем остаток строки до '\n' */
         while (1) {
             c = getchar();
             if (c < 0) {
@@ -92,7 +90,6 @@ int main() {
         } 
         puts("Result:");
         print_int(result);
-        /* '\n' */
         putchar(10);
     }
     
