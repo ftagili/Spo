@@ -7,9 +7,10 @@
    through our runtime layer. This avoids overriding libc's malloc symbol
    globally and gives visibility into allocation failures / sizes. */
 void *__runtime_malloc(size_t s) {
-    void *p = malloc(s);
-    fprintf(stderr, "__runtime_malloc(%zu) -> %p\n", s, p);
-    return p;
+    /* Avoid calling fprintf here: it may call malloc internally and
+       lead to re-entrancy issues when we are debugging allocator state.
+       Keep this wrapper simple and side-effect free. */
+    return malloc(s);
 }
 
 /* Placeholder vtable symbols for classes that may be referenced by
