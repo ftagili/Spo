@@ -586,7 +586,29 @@ static void gen_call(CG *cg, const ASTNode *call) {
       emit(cg, "  brasl %%r14,%s", fname);
     }
   } else {
-    emit(cg, "  brasl %%r14,%s", fname); // result in r2
+    /* If there is no exact top-level function named `fname`, try to
+       find a mangled variant defined in this translation unit with the
+       form `fname__...` and call that. This is a pragmatic compatibility
+       fix for simple cases where the source calls an overloaded name
+       (e.g., `sum`) but codegen produced mangled definitions
+       (`sum__List_int`, `sum__List_Vec2i`). Prefer the first match. */
+    const char *mangled_found = NULL;
+    if (cg && fname) {
+      size_t base_len = strlen(fname);
+      for (int i = 0; i < cg->defined_n; i++) {
+        const char *dn = cg->defined_names[i];
+        if (!dn) continue;
+        if (strncmp(dn, fname, base_len) == 0 && dn[base_len] == '_' && dn[base_len+1] == '_') {
+          mangled_found = dn;
+          break;
+        }
+      }
+    }
+    if (mangled_found) {
+      emit(cg, "  brasl %%r14,%s", mangled_found);
+    } else {
+      emit(cg, "  brasl %%r14,%s", fname); // result in r2
+    }
   }
   
   if (!strcmp(fname, "puts") || !strcmp(fname, "printf")) {
